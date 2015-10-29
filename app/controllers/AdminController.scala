@@ -316,7 +316,7 @@ object AdminController extends Controller with RequestParser {
    */
   def copyLabel(oldLabelName: String, newLabelName: String) = Action { request =>
     val copyTry = Management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
-    tryResponse(copyTry)(_.label + "created")
+    tryResponse(copyTry)(_.label + " created")
   }
 
   /**
@@ -326,13 +326,34 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def renameLabel(oldLabelName: String, newLabelName: String) = Action { request =>
-    Label.findByName(oldLabelName) match {
-      case None => NotFound.as(applicationJsonHeader)
+    Label.findByName(oldLabelName, useCache = false) match {
+//      case None => NotFound.as(applicationJsonHeader)
+      case None => notFound(s"Label $oldLabelName not found.")
       case Some(label) =>
         Management.updateLabelName(oldLabelName, newLabelName)
-        ok(s"Label was updated")
+        ok(s"Label was updated.")
     }
   }
+
+  /**
+   * swap two label names
+   * @param leftLabelName
+   * @param rightLabelName
+   * @return
+   */
+  def swapLabels(leftLabelName: String, rightLabelName: String) = Action { request =>
+    val left = Label.findByName(leftLabelName, useCache = false)
+    val right = Label.findByName(rightLabelName, useCache = false)
+    // verify same schema
+
+    (left, right) match {
+      case (Some(l), Some(r)) =>
+        Management.swapLabelNames(leftLabelName, rightLabelName)
+        ok(s"Labels were swapped.")
+      case _ => notFound(s"Labels ${leftLabelName} or ${rightLabelName} not found.")
+    }
+  }
+
 
   /**
    * update HTable for a label
