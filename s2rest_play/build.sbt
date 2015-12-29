@@ -11,7 +11,8 @@ libraryDependencies ++= Seq(
   filters,
   "xalan" % "serializer" % "2.7.2", // Download in Intelli J(Download Source/Document)
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
-  "org.json4s" %% "json4s-native" % "3.2.11" % Test
+  "org.json4s" %% "json4s-native" % "3.2.11" % Test,
+  "com.github.etaty" %% "rediscala" % "1.5.0"
 )
 
 enablePlugins(JavaServerAppPackaging)
