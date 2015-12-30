@@ -323,6 +323,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
 
   // TODO: Make storage client by config param
   val storage: Storage = new AsynchbaseStorage(config, vertexCache)(ec)
+  val storage: Storage = new RedisStorage(config, vertexCache)(ec)
 
   for {
     entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)

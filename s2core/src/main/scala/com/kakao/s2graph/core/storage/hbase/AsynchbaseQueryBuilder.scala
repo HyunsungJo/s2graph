@@ -27,23 +27,23 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   val expreAfterAccess = storage.config.getInt("future.cache.expire.after.access")
 
   val futureCache = CacheBuilder.newBuilder()
-//  .recordStats()
-  .initialCapacity(maxSize)
-  .concurrencyLevel(Runtime.getRuntime.availableProcessors())
-  .expireAfterWrite(expreAfterWrite, TimeUnit.MILLISECONDS)
-  .expireAfterAccess(expreAfterAccess, TimeUnit.MILLISECONDS)
-//  .weakKeys()
-  .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
+    //  .recordStats()
+    .initialCapacity(maxSize)
+    .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+    .expireAfterWrite(expreAfterWrite, TimeUnit.MILLISECONDS)
+    .expireAfterAccess(expreAfterAccess, TimeUnit.MILLISECONDS)
+    //  .weakKeys()
+    .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
 
   //  val scheduleTime = 60L * 60
-//  val scheduleTime = 60
-//  val scheduler = Executors.newScheduledThreadPool(1)
-//
-//  scheduler.scheduleAtFixedRate(new Runnable(){
-//    override def run() = {
-//      logger.info(s"[FutureCache]: ${futureCache.stats()}")
-//    }
-//  }, scheduleTime, scheduleTime, TimeUnit.SECONDS)
+  //  val scheduleTime = 60
+  //  val scheduler = Executors.newScheduledThreadPool(1)
+  //
+  //  scheduler.scheduleAtFixedRate(new Runnable(){
+  //    override def run() = {
+  //      logger.info(s"[FutureCache]: ${futureCache.stats()}")
+  //    }
+  //  }, scheduleTime, scheduleTime, TimeUnit.SECONDS)
 
   override def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
@@ -140,7 +140,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     def fetchInner(request: GetRequest) = {
       storage.client.get(request) withCallback { kvs =>
         val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0 ) {
+        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
           sample(edgeWithScores, queryRequest.queryParam.sample)
         } else edgeWithScores
         QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
@@ -228,7 +228,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
       parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
     } yield fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
-    
+
     val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
     grouped withCallback {
       queryResults: util.ArrayList[QueryRequestWithResult] =>
