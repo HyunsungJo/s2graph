@@ -5,8 +5,8 @@ import org.apache.hadoop.hbase.util._
 /**
  * Created by shon on 6/6/15.
  */
-object InnerVal extends HBaseDeserializableWithIsVertexId {
-  import HBaseType._
+object InnerVal extends GraphDeserializableWithIsVertexId {
+  import GraphType._
 
   val order = Order.DESCENDING
   val stringLenOffset = 7.toByte
@@ -182,7 +182,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
 }
 
-trait InnerValLike extends HBaseSerializable {
+trait InnerValLike extends GraphSerializable {
 
   val value: Any
 
@@ -217,8 +217,8 @@ trait InnerValLike extends HBaseSerializable {
 
 }
 
-object InnerValLikeWithTs extends HBaseDeserializable {
-  import HBaseType._
+object InnerValLikeWithTs extends GraphDeserializable {
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -238,7 +238,7 @@ object InnerValLikeWithTs extends HBaseDeserializable {
 }
 
 case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long)
-  extends HBaseSerializable {
+  extends GraphSerializable {
 
   def bytes: Array[Byte] = {
     Bytes.add(innerVal.bytes, Bytes.toBytes(ts))

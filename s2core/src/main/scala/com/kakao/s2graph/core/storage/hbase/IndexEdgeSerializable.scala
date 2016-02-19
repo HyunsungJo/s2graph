@@ -1,9 +1,8 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core.mysqls.LabelMeta
-import com.kakao.s2graph.core.storage.{StorageSerializable, SKeyValue}
-import com.kakao.s2graph.core.types.{HBaseType, VertexId}
-import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.storage.{SKeyValue, StorageSerializable}
+import com.kakao.s2graph.core.types.{GraphType, VertexId}
 import com.kakao.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -21,14 +20,14 @@ case class IndexEdgeSerializable(indexEdge: IndexEdge) extends HSerializable[Ind
   /** version 1 and version 2 share same code for serialize row key part */
   override def toKeyValues: Seq[SKeyValue] = {
     label.schemaVersion match {
-      case HBaseType.VERSION4 => toKeyValuesInnerRow
+      case GraphType.VERSION4 => toKeyValuesInnerRow
       case _ => toKeyValuesInner
     }
   }
   def toKeyValuesInner: Seq[SKeyValue] = {
     val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
     val labelWithDirBytes = indexEdge.labelWithDir.bytes
-    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
 
     val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
     //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")
@@ -61,7 +60,7 @@ case class IndexEdgeSerializable(indexEdge: IndexEdge) extends HSerializable[Ind
   def toKeyValuesInnerRow: Seq[SKeyValue] = {
     val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
     val labelWithDirBytes = indexEdge.labelWithDir.bytes
-    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
 
     val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
     //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")

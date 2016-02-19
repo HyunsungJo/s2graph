@@ -3,11 +3,8 @@ package com.kakao.s2graph.core
 import java.util
 import java.util.concurrent.ConcurrentHashMap
 
-import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
-import com.kakao.s2graph.core.storage.Storage
-import com.kakao.s2graph.core.storage.hbase._
 import com.kakao.s2graph.core.storage.rocks.RocksDBStorage
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger

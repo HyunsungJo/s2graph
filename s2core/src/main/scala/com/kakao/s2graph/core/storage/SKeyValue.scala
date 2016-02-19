@@ -8,6 +8,7 @@ object SKeyValue {
   val Put = 1
   val Delete = 2
   val Increment = 3
+  val SnapshotPut = 4
   val Default = Put
 }
 case class SKeyValue(table: Array[Byte],

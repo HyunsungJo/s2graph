@@ -267,7 +267,7 @@ object QueryParam {
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
 
-  import HBaseSerializable._
+  import GraphSerializable._
   import Query.DuplicatePolicy
   import Query.DuplicatePolicy._
 

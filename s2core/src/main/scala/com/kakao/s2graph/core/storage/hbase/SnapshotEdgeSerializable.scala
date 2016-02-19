@@ -5,7 +5,7 @@ import java.util.UUID
 import com.kakao.s2graph.core.SnapshotEdge
 import com.kakao.s2graph.core.mysqls.LabelIndex
 import com.kakao.s2graph.core.storage.{StorageSerializable, SKeyValue}
-import com.kakao.s2graph.core.types.{HBaseType, SourceAndTargetVertexIdPair, VertexId}
+import com.kakao.s2graph.core.types.{GraphType, SourceAndTargetVertexIdPair, VertexId}
 import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -27,7 +27,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
 
   override def toKeyValues: Seq[SKeyValue] = {
     label.schemaVersion match {
-      case HBaseType.VERSION1 | HBaseType.VERSION2 => toKeyValuesInner
+      case GraphType.VERSION1 | GraphType.VERSION2 => toKeyValuesInner
       case _ => toKeyValuesInnerV3
     }
   }
@@ -35,7 +35,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
   private def toKeyValuesInner: Seq[SKeyValue] = {
     val srcIdBytes = VertexId.toSourceVertexId(snapshotEdge.srcVertex.id).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
-    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
+    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(LabelIndex.DefaultSeq, isSnapshot = true)
 
     val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
     val tgtIdBytes = VertexId.toTargetVertexId(snapshotEdge.tgtVertex.id).bytes
@@ -58,7 +58,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
   private def toKeyValuesInnerV3: Seq[SKeyValue] = {
     val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(snapshotEdge.srcVertex.innerId, snapshotEdge.tgtVertex.innerId).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
-    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
+    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(LabelIndex.DefaultSeq, isSnapshot = true)
 
     val row = Bytes.add(srcIdAndTgtIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
 

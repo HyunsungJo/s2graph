@@ -29,7 +29,7 @@ trait TestCommon {
   def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
 
   /** */
-  import HBaseType.{VERSION2, VERSION1}
+  import GraphType.{VERSION2, VERSION1}
   private val tsValSmall = InnerVal.withLong(ts, VERSION1)
   private val tsValLarge = InnerVal.withLong(ts + 1, VERSION1)
   private val boolValSmall = InnerVal.withBoolean(false, VERSION1)

@@ -12,7 +12,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   // dummy data for dummy edge
   initTests()
   
-  import HBaseType.{VERSION1, VERSION2}
+  import GraphType.{VERSION1, VERSION2}
 
   val ts = System.currentTimeMillis()
   val dummyTs = (LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
@@ -168,7 +168,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   }
 
   test("replace reserved") {
-    val ts = 0
+    val ts = 1454409859684L
     import Experiment._
     calculate(ts, 1, "hour") should be(hour + ts)
     calculate(ts, 1, "day") should be(day + ts)
@@ -179,7 +179,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     val body = """{
         	"day": ${1day},
           "hour": ${1hour},
-          "-day": "${-10 day}",
+          "-day": "${-90 day}",
           "-hour": ${-10 hour},
           "now": "${now}"
         }
@@ -191,7 +191,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     (json \ "day").as[Long] should be (1 * day + ts)
     (json \ "hour").as[Long] should be (1 * hour + ts)
 
-    (json \ "-day").as[Long] should be (-10 * day + ts)
+    (json \ "-day").as[Long] should be (-90 * day + ts)
     (json \ "-hour").as[Long] should be (-10 * hour + ts)
 
     (json \ "now").as[Long] should be (ts)

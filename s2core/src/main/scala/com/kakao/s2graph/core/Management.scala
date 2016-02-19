@@ -4,7 +4,7 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.HBaseType._
+import com.kakao.s2graph.core.types.GraphType._
 import com.kakao.s2graph.core.types._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -26,7 +26,7 @@ object Management extends JSONParser {
 
   }
 
-  import HBaseType._
+  import GraphType._
 
   val DefaultCompressionAlgorithm = "gz"
 

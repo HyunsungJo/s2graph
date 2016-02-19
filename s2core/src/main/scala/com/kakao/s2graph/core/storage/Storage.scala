@@ -1,9 +1,6 @@
 package com.kakao.s2graph.core.storage
 
-import java.util.Base64
-
-
-import com.kakao.s2graph.core.ExceptionHandler.{Key, Val, KafkaMessage}
+import com.kakao.s2graph.core.ExceptionHandler.{KafkaMessage, Key, Val}
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
@@ -39,7 +36,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     * @param snapshotEdge : snapshotEdge to serialize
     * @return serializer implementation for StorageSerializable which has toKeyValues return Seq[SKeyValue]
     */
-  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = new SnapshotEdgeSerializable(snapshotEdge)
+  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): StorageSerializable[SnapshotEdge] = new SnapshotEdgeSerializable(snapshotEdge)
 
   /**
     * create serializer that knows how to convert given indexEdge into kvs: Seq[SKeyValue]
@@ -47,7 +44,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     * @param indexedEdge : indexEdge to serialize
     * @return serializer implementation
     */
-  def indexEdgeSerializer(indexedEdge: IndexEdge) = new IndexEdgeSerializable(indexedEdge)
+  def indexEdgeSerializer(indexedEdge: IndexEdge): StorageSerializable[IndexEdge] = new IndexEdgeSerializable(indexedEdge)
 
   /**
     * create serializer that knows how to convert given vertex into kvs: Seq[SKeyValue]
@@ -55,7 +52,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     * @param vertex : vertex to serialize
     * @return serializer implementation
     */
-  def vertexSerializer(vertex: Vertex) = new VertexSerializable(vertex)
+  def vertexSerializer(vertex: Vertex):StorageSerializable[Vertex] = new VertexSerializable(vertex)
 
   /**
     * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -66,13 +63,13 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     * if any storaage use different class to represent stored byte array,
     * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
     **/
-  val snapshotEdgeDeserializer = new SnapshotEdgeDeserializable
+  val snapshotEdgeDeserializer: GDeserializable[SnapshotEdge] = new SnapshotEdgeDeserializable
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializer = new IndexEdgeDeserializable
+  val indexEdgeDeserializer: GDeserializable[IndexEdge] = new IndexEdgeDeserializable
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
-  val vertexDeserializer = new VertexDeserializable
+  val vertexDeserializer: StorageDeserializable[Vertex] = new VertexDeserializable
 
   /**
     * decide how to store given SKeyValue into storage using storage's client.
@@ -502,7 +499,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     } yield {
       val label = queryRequest.queryParam.label
       label.schemaVersion match {
-        case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+        case GraphType.VERSION3 | GraphType.VERSION4 =>
           if (label.consistencyLevel == "strong") {
             /**
               * read: snapshotEdge on queryResult = O(N)

@@ -7,8 +7,8 @@ import org.apache.hadoop.hbase.util.Bytes
 /**
  * Created by shon on 6/6/15.
  */
-object InnerVal extends HBaseDeserializableWithIsVertexId {
-  import HBaseType._
+object InnerVal extends GraphDeserializableWithIsVertexId {
+  import GraphType._
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
@@ -148,7 +148,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 }
 
 case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boolean])
-  extends HBaseSerializable with InnerValLike {
+  extends GraphSerializable with InnerValLike {
 
   import InnerVal._
 

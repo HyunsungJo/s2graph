@@ -1,7 +1,7 @@
 package subscriber
 
 import com.kakao.s2graph.core.Management
-import com.kakao.s2graph.core.types.HBaseType
+import com.kakao.s2graph.core.types.GraphType
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 import subscriber.TransferToHFile._
@@ -62,7 +62,7 @@ class TransferToHFileTest  extends FlatSpec with BeforeAndAfterAll with Matchers
         Seq(),
         "weak",
         None, None,
-        HBaseType.DEFAULT_VERSION,
+        GraphType.DEFAULT_VERSION,
         false,
         Management.defaultCompressionAlgorithm
       )

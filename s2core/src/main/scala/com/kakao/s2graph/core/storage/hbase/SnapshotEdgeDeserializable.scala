@@ -6,13 +6,13 @@ import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
-class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable extends GDeserializable[SnapshotEdge] {
 
   import StorageDeserializable._
 
   override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     queryParam.label.schemaVersion match {
-      case HBaseType.VERSION2 | HBaseType.VERSION1 => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
+      case GraphType.VERSION2 | GraphType.VERSION1 => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
       case _  => fromKeyValuesInnerV3(queryParam, _kvs, version, cacheElementOpt)
     }
   }
@@ -87,7 +87,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       pos += srcIdAndTgtIdLen
       val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
       pos += 4
-      val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
+      val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsSnapshot(kv.row, pos)
 
       val rowLen = srcIdAndTgtIdLen + 4 + 1
       (srcIdAndTgtId.srcInnerId, srcIdAndTgtId.tgtInnerId, labelWithDir, labelIdxSeq, isInverted, rowLen)
@@ -97,8 +97,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       (e.srcVertex.innerId, e.tgtVertex.innerId, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRowV3(kv, schemaVer))
 
-    val srcVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, srcInnerId)
-    val tgtVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, tgtInnerId)
+    val srcVertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, srcInnerId)
+    val tgtVertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, tgtInnerId)
 
     val (props, op, ts, statusCode, _pendingEdgeOpt) = {
       var pos = 0

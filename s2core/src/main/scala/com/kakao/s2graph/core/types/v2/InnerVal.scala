@@ -7,9 +7,9 @@ import org.apache.hadoop.hbase.util._
 /**
  * Created by shon on 6/6/15.
  */
-object InnerVal extends HBaseDeserializableWithIsVertexId {
+object InnerVal extends GraphDeserializableWithIsVertexId {
 
-  import HBaseType._
+  import GraphType._
 
   val order = Order.DESCENDING
 
@@ -49,7 +49,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   }
 }
 
-case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
+case class InnerVal(value: Any) extends GraphSerializable with InnerValLike {
 
   import com.kakao.s2graph.core.types.InnerVal._
 

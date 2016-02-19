@@ -7,7 +7,7 @@ import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 import StorageDeserializable._
 
-class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends HDeserializable[IndexEdge] {
+class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends GDeserializable[IndexEdge] {
 
   import StorageDeserializable._
 
@@ -18,7 +18,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
 //    val degree = Bytes.toLong(kv.value)
     val degree = bytesToLongFunc(kv.value, 0)
     val idxPropsRaw = Array(LabelMeta.degreeSeq -> InnerVal.withLong(degree, version))
-    val tgtVertexIdRaw = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
+    val tgtVertexIdRaw = VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
     (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
   }
 
@@ -30,7 +30,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
       pos = endAt
       qualifierLen += endAt
       val (tgtVertexId, tgtVertexIdLen) = if (endAt == kv.qualifier.length) {
-        (HBaseType.defaultTgtVertexId, 0)
+        (GraphType.defaultTgtVertexId, 0)
       } else {
         TargetVertexId.fromBytes(kv.qualifier, endAt, kv.qualifier.length, version)
       }
@@ -63,7 +63,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
                                               version: String,
                                               cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {
     version match {
-      case HBaseType.VERSION4 => fromKeyValuesInnerRow(queryParam, _kvs, version, cacheElementOpt)
+      case GraphType.VERSION4 => fromKeyValuesInnerRow(queryParam, _kvs, version, cacheElementOpt)
       case _ => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
     }
   }
@@ -112,7 +112,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
     val tgtVertexId = if (tgtVertexIdInQualifier) {
       idxPropsMap.get(LabelMeta.toSeq) match {
         case None => tgtVertexIdRaw
-        case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
+        case Some(vId) => TargetVertexId(GraphType.DEFAULT_COL_ID, vId)
       }
     } else tgtVertexIdRaw
 
@@ -142,7 +142,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
     pos += srcIdLen
     val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
     pos += 4
-    val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
+    val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsSnapshot(kv.row, pos)
     pos += 1
 
     val op = kv.row(pos)
@@ -155,7 +155,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
       val ts = kv.timestamp
       val props = Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, version),
         LabelMeta.degreeSeq -> InnerVal.withLong(degreeVal, version))
-      val tgtVertexId = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
+      val tgtVertexId = VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
       IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, props)
     } else {
       // not degree edge
@@ -164,7 +164,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
       val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, version)
       pos = endAt
       val (tgtVertexIdRaw, tgtVertexIdLen) = if (endAt == kv.row.length) {
-        (HBaseType.defaultTgtVertexId, 0)
+        (GraphType.defaultTgtVertexId, 0)
       } else {
         TargetVertexId.fromBytes(kv.row, endAt, kv.row.length, version)
       }
@@ -178,7 +178,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
       val tgtVertexId =
         idxPropsMap.get(LabelMeta.toSeq) match {
           case None => tgtVertexIdRaw
-          case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
+          case Some(vId) => TargetVertexId(GraphType.DEFAULT_COL_ID, vId)
         }
 
       val (props, _) = if (op == GraphUtil.operations("incrementCount")) {

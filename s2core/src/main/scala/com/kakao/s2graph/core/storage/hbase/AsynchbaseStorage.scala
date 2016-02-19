@@ -4,14 +4,14 @@ import java.util
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
-import com.google.common.cache.{CacheBuilder}
+import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.storage._
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.Deferred
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
@@ -19,11 +19,11 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.hbase.async._
+
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
-import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
 
@@ -150,7 +150,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val (minTs, maxTs) = queryParam.duration.getOrElse((0L, Long.MaxValue))
 
     label.schemaVersion match {
-      case HBaseType.VERSION4 if queryParam.tgtVertexInnerIdOpt.isEmpty =>
+      case GraphType.VERSION4 if queryParam.tgtVertexInnerIdOpt.isEmpty =>
         val scanner = client.newScanner(label.hbaseTableName.getBytes)
         scanner.setFamily(edgeCf)
 
@@ -162,7 +162,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
         val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
         val labelWithDirBytes = indexEdge.labelWithDir.bytes
-        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
         //        val labelIndexSeqWithIsInvertedStopBytes =  StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = true)
         val baseKey = Bytes.add(srcIdBytes, labelWithDirBytes, Bytes.add(labelIndexSeqWithIsInvertedBytes, Array.fill(1)(edge.op)))
         val (startKey, stopKey) =

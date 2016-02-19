@@ -1,14 +1,14 @@
 package com.kakao.s2graph.core.types
 
 import com.kakao.s2graph.core.GraphUtil
-import com.kakao.s2graph.core.types.HBaseType._
+import com.kakao.s2graph.core.types.GraphType._
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
  * Created by shon on 6/10/15.
  */
-object VertexId extends HBaseDeserializable {
-  import HBaseType._
+object VertexId extends GraphDeserializable {
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -33,7 +33,7 @@ object VertexId extends HBaseDeserializable {
   }
 }
 
-class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBaseSerializable {
+class VertexId protected (val colId: Int, val innerId: InnerValLike) extends GraphSerializable {
   val storeHash: Boolean = true
   val storeColId: Boolean = true
   lazy val hashBytes =
@@ -79,8 +79,8 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
   def >=(other: VertexId): Boolean = compareTo(other) >= 0
 }
 
-object SourceVertexId extends HBaseDeserializable {
-  import HBaseType._
+object SourceVertexId extends GraphDeserializable {
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -100,8 +100,8 @@ case class SourceVertexId(override val colId: Int,
   override val storeColId: Boolean = false
 }
 
-object TargetVertexId extends HBaseDeserializable {
-  import HBaseType._
+object TargetVertexId extends GraphDeserializable {
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -120,9 +120,9 @@ case class TargetVertexId(override val colId: Int,
 
 }
 
-object SourceAndTargetVertexIdPair extends HBaseDeserializable {
+object SourceAndTargetVertexIdPair extends GraphDeserializable {
   val delimiter = ":"
-  import HBaseType._
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -134,7 +134,7 @@ object SourceAndTargetVertexIdPair extends HBaseDeserializable {
   }
 }
 
-case class SourceAndTargetVertexIdPair(val srcInnerId: InnerValLike, val tgtInnerId: InnerValLike) extends HBaseSerializable {
+case class SourceAndTargetVertexIdPair(val srcInnerId: InnerValLike, val tgtInnerId: InnerValLike) extends GraphSerializable {
   val colId = DEFAULT_COL_ID
   import SourceAndTargetVertexIdPair._
   override def bytes: Array[Byte] = {

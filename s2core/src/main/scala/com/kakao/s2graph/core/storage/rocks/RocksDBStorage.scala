@@ -1,25 +1,23 @@
 package com.kakao.s2graph.core.storage.rocks
 
-import java.nio.{ByteOrder, ByteBuffer}
+import java.nio.{ByteBuffer, ByteOrder}
 import java.util.Base64
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.locks.{ReentrantLock, ReadWriteLock}
+import java.util.concurrent.locks.ReentrantLock
 
-import com.google.common.cache.{CacheLoader, CacheBuilder, Cache}
-import com.kakao.s2graph.core.mysqls.Label
+import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.storage.hbase._
-import com.kakao.s2graph.core.storage.{SKeyValue, StorageDeserializable, StorageSerializable, Storage}
+import com.kakao.s2graph.core.storage.{SKeyValue, Storage, StorageSerializable}
 import com.kakao.s2graph.core.types.VertexId
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.rocksdb._
 
-import scala.collection.{Seq, mutable}
+import scala.collection.Seq
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 
 object RocksDBHelper {
   def longToBytes(value: Long): Array[Byte] = {
@@ -42,8 +40,8 @@ object RocksDBHelper {
 class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Future[QueryRequestWithResult]](config) {
 
-  import RocksDBHelper._
   import HSerializable._
+  import RocksDBHelper._
 
 
   override val indexEdgeDeserializer = new IndexEdgeDeserializable(bytesToLong)
@@ -207,7 +205,7 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
         val indexEdge = indexEdgeOpt.getOrElse(throw new RuntimeException(s"Can`t find index for query $queryParam"))
         val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
         val labelWithDirBytes = indexEdge.labelWithDir.bytes
-        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
 
         val baseKey = Bytes.add(srcIdBytes, labelWithDirBytes, Bytes.add(labelIndexSeqWithIsInvertedBytes, Array.fill(1)(edge.op)))
         val (startKey, stopKey) =
