@@ -5,6 +5,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.storage.hbase.AsynchbaseStorage
+import com.kakao.s2graph.core.storage.redis.RedisStorage
 import com.kakao.s2graph.core.storage.rocks.RocksDBStorage
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
@@ -339,8 +341,20 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   Model.loadCache()
 
   // TODO: Make storage client by config param
+  def getStorage = {
+    val engine = if (config.hasPath("storage.engine")) config.getString("storage.engine") else "hbase"
+    logger.info(s">> storage engine name : $engine")
+    engine match {
+      case "rocksdb" => new RocksDBStorage(config)(ec)
+      case "redis" =>
+        logger.info(s">> redis Storage init")
+        new RedisStorage(config)(ec)
+      case "hbase" | _ => new AsynchbaseStorage(config)(ec)
+    }
+  }
+
 //  val storage = new AsynchbaseStorage(config)(ec)
-  val storage = new RocksDBStorage(config)(ec)
+  val storage = getStorage
 
   for {
     entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)

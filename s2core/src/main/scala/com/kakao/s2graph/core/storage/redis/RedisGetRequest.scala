@@ -9,12 +9,13 @@ trait RedisRPC {
 }
 
 case class RedisGetRequest(k: Array[Byte]) extends RedisRPC {
-  assert(key.length > 0)
-
   /**
    * For degree edge key(not sorted set key/value case)
    */
   override val key = k
+
+  assert(key.length > 0)
+
   var isIncludeDegree: Boolean = true
 
   var timeout: Long = _
@@ -58,7 +59,7 @@ case class RedisGetRequest(k: Array[Byte]) extends RedisRPC {
 
 
 case class RedisSnapshotGetRequest(k: Array[Byte]) extends RedisRPC {
-  assert(key.length > 0)
   override val key = k
+  assert(key.length > 0)
 }
 

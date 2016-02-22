@@ -14,9 +14,9 @@ import scala.util.Try
  */
 class JedisClient(config: Config) {
   // TODO: refactor me
-  lazy val instances: List[(String, Int)] = if (config.hasPath("redis.instances")) {
+  lazy val instances: List[(String, Int)] = if (config.hasPath("redis.storage")) {
     (for {
-      s <- config.getStringList("redis.storages")
+      s <- config.getStringList("redis.storage")
     } yield {
         val sp = s.split(':')
         (sp(0), if (sp.length > 1) sp(1).toInt else 6379)
@@ -32,6 +32,7 @@ class JedisClient(config: Config) {
   poolConfig.setMaxWaitMillis(200)
 
   val jedisPools = instances.map { case (host, port) =>
+    log.info(s">> jedisPool initialized : $host, $port")
     new JedisPool(poolConfig, host, port)
   }
 

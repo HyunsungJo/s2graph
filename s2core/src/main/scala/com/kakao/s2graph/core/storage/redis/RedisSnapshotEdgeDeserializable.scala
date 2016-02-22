@@ -1,10 +1,10 @@
 package com.kakao.s2graph.core.storage.redis
 
-import com.kakao.s2graph.core.mysqls.{LabelMeta, LabelIndex}
-import com.kakao.s2graph.core.types.{SourceVertexId, LabelWithDirection, SourceAndTargetVertexIdPair, GraphType}
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.storage.{SKeyValue, CanSKeyValue, StorageDeserializable}
+import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.hbase.GDeserializable
+import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
+import com.kakao.s2graph.core.types.{GraphType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
 import org.apache.hadoop.hbase.util.Bytes
 
 /**

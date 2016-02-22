@@ -21,6 +21,7 @@ import scala.util.{Failure, Success}
  */
 class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Future[QueryRequestWithResult]](config) {
+
   import GraphUtil._
 
   val futureCache = CacheBuilder.newBuilder()
@@ -36,12 +37,15 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   override val vertexDeserializer = new RedisVertexDeserializable
 
   override def indexEdgeSerializer(indexedEdge: IndexEdge) = new RedisIndexEdgeSerializable(indexedEdge)
+
   override def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = new RedisSnapshotEdgeSerializable(snapshotEdge)
+
   override def vertexSerializer(vertex: Vertex) = new RedisVertexSerializable(vertex)
 
   private val RedisZsetScore = 1
 
   private val client = new JedisClient(config)
+  logger.info(s">> jedis client initialized")
 
   /**
    * decide how to store given SKeyValue into storage using storage's client.
@@ -58,6 +62,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return ack message from storage.
    */
   override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
+    logger.info(s">> [writeToStorage]")
     val future = Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
         kv.operation match {
@@ -65,7 +70,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
             logger.info(s">> [writeToStorage] vertex put : row - ${GraphUtil.bytesToHexString(kv.row)}, q : ${GraphUtil.bytesToHexString(kv.qualifier)}, v : ${GraphUtil.bytesToHexString(kv.value)}")
             jedis.zadd(kv.row, RedisZsetScore, kv.qualifier ++ kv.value) == 1
           case SKeyValue.Put if kv.qualifier.length == 0 =>
-            if ( kv.operation == SKeyValue.SnapshotPut) {
+            if (kv.operation == SKeyValue.SnapshotPut) {
               logger.info(s">> [writeToStorage] snapshot edge put : row - ${GraphUtil.bytesToHexString(kv.row)}, q : ${GraphUtil.bytesToHexString(kv.qualifier)}, v : ${GraphUtil.bytesToHexString(kv.value)}")
               jedis.set(kv.row, kv.value) == 1
             } else {
@@ -112,6 +117,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    */
 
   override def buildRequest(queryRequest: QueryRequest): RedisRPC = {
+    logger.info(s">> buildRequest")
     val srcVertex = queryRequest.vertex
 
     val queryParam = queryRequest.queryParam
@@ -146,12 +152,13 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       val indexedEdge = indexedEdgeOpt.get
       (indexEdgeSerializer(indexedEdge).toKeyValues.head, false)
     }
+    logger.info(s">> isSnapshot : $isSnapshot")
 
     // Redis supports client-side sharding and does not require hash key so remove heading hash key(2 bytes)
     val rowkey = kv.row
 
     // 1. RedisGet instance initialize
-    if( isSnapshot ) new RedisSnapshotGetRequest(rowkey)
+    if (isSnapshot) new RedisSnapshotGetRequest(rowkey)
     else {
       val _get = new RedisGetRequest(rowkey)
       _get.isIncludeDegree = !tgtVertexIdOpt.isDefined
@@ -175,6 +182,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   }
 
   private def fetchKeyValuesInner(request: RedisRPC) = {
+    logger.info(s">> fetchKeyValuesInner")
     Future[Seq[SKeyValue]] {
       // send rpc call to Redis instance
       client.doBlockWithKey[Seq[SKeyValue]]("" /* sharding key */) { jedis =>
@@ -196,14 +204,22 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               result :+ SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], Bytes.add(zeroLenBytes, degreeBytes), 0L)
             } else result
           case req@RedisSnapshotGetRequest(_) =>
-            val result = jedis.get(req.key)
-            val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], result, 0L)
-            Seq[SKeyValue](snapshot)
+            logger.info(s">> get snapshotedge , key : ${GraphUtil.bytesToHexString(req.key)}")
+            val _result = jedis.get(req.key)
+            if (_result == null) {
+              Seq.empty[SKeyValue]
+            }
+            else {
+              logger.info(s">> reduls : ${GraphUtil.bytesToHexString(_result)}")
+              val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L)
+              Seq[SKeyValue](snapshot)
+            }
         }
       } match {
         case Success(v) => v
         case Failure(e) =>
           logger.info(s">> get fail!! $e")
+          e.printStackTrace()
           Seq[SKeyValue]()
       }
     }
@@ -226,82 +242,82 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @param parentEdges
    * @return
    */
-    override def fetch(queryRequest: QueryRequest,
-                       prevStepScore: Double,
-                       isInnerCall: Boolean,
-                       parentEdges: Seq[EdgeWithScore]): Future[QueryRequestWithResult] = {
-  def fetchInner(request: RedisRPC) = {
-    fetchKeyValuesInner(request).map { values =>
-      val edgeWithScores = toEdges(values, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-      val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0 ) {
-        sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
-      } else edgeWithScores
-      QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
-    }.recover{ case ex: Exception =>
-      logger.error(s"fetchInner failed. fallback return. $request}", ex)
-      QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
-    }
-  }
-
-  def checkAndExpire(request: RedisRPC,
-                     cacheKey: Long,
-                     cacheTTL: Long,
-                     cachedAt: Long,
-                     defer: Future[QueryRequestWithResult]): Future[QueryRequestWithResult] = {
-
-    if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
-      // future is too old. so need to expire and fetch new data from storage.
-      futureCache.asMap().remove(cacheKey)
-      val newPromise = Promise[QueryRequestWithResult]()
-      val newFuture = newPromise.future
-      futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), newFuture)) match {
-        case null =>
-          // only one thread succeed to come here concurrently
-          // initiate fetch to storage then add callback on complete to finish promise.
-          fetchInner(request) map { queryRequestWithResult =>
-            newPromise.trySuccess(queryRequestWithResult)
-            queryRequestWithResult
-          }
-          newFuture
-        case (cachedAt, oldDefer) => oldDefer
+  override def fetch(queryRequest: QueryRequest,
+                     prevStepScore: Double,
+                     isInnerCall: Boolean,
+                     parentEdges: Seq[EdgeWithScore]): Future[QueryRequestWithResult] = {
+    def fetchInner(request: RedisRPC) = {
+      fetchKeyValuesInner(request).map { values =>
+        val edgeWithScores = toEdges(values, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
+        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
+          sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
+        } else edgeWithScores
+        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
+      }.recover { case ex: Exception =>
+        logger.error(s"fetchInner failed. fallback return. $request}", ex)
+        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
-    } else {
-      // future is not to old so reuse it.
-      defer
     }
-  }
 
-  val queryParam = queryRequest.queryParam
-  val cacheTTL = queryParam.cacheTTLInMillis
-  val request = buildRequest(queryRequest)
-  if (cacheTTL <= 0) fetchInner(request)
-  else {
-    val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
-    val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+    def checkAndExpire(request: RedisRPC,
+                       cacheKey: Long,
+                       cacheTTL: Long,
+                       cachedAt: Long,
+                       defer: Future[QueryRequestWithResult]): Future[QueryRequestWithResult] = {
 
-    val cacheVal = futureCache.getIfPresent(cacheKey)
-    cacheVal match {
-      case null =>
-        // here there is no promise set up for this cacheKey so we need to set promise on future cache.
-        val promise = Promise[QueryRequestWithResult]()
-        val future = promise.future
-        val now = System.currentTimeMillis()
-        val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, future)) match {
+      if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
+        // future is too old. so need to expire and fetch new data from storage.
+        futureCache.asMap().remove(cacheKey)
+        val newPromise = Promise[QueryRequestWithResult]()
+        val newFuture = newPromise.future
+        futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), newFuture)) match {
           case null =>
+            // only one thread succeed to come here concurrently
+            // initiate fetch to storage then add callback on complete to finish promise.
             fetchInner(request) map { queryRequestWithResult =>
-              promise.trySuccess(queryRequestWithResult)
+              newPromise.trySuccess(queryRequestWithResult)
               queryRequestWithResult
             }
-            (now, future)
-          case oldVal => oldVal
+            newFuture
+          case (cachedAt, oldDefer) => oldDefer
         }
-        checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
-      case (cachedAt, defer) =>
-        checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+      } else {
+        // future is not to old so reuse it.
+        defer
+      }
     }
-  }
 
-}
+    val queryParam = queryRequest.queryParam
+    val cacheTTL = queryParam.cacheTTLInMillis
+    val request = buildRequest(queryRequest)
+    if (cacheTTL <= 0) fetchInner(request)
+    else {
+      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+
+      val cacheVal = futureCache.getIfPresent(cacheKey)
+      cacheVal match {
+        case null =>
+          // here there is no promise set up for this cacheKey so we need to set promise on future cache.
+          val promise = Promise[QueryRequestWithResult]()
+          val future = promise.future
+          val now = System.currentTimeMillis()
+          val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, future)) match {
+            case null =>
+              fetchInner(request) map { queryRequestWithResult =>
+                promise.trySuccess(queryRequestWithResult)
+                queryRequestWithResult
+              }
+              (now, future)
+            case oldVal => oldVal
+          }
+          checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+        case (cachedAt, defer) =>
+          checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+      }
+    }
+
+  }
 
   /**
    * fetch IndexEdges for given request from storage.
@@ -342,24 +358,26 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return
    */
   override def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
+    logger.info(s">> [writeLock]")
     Future[Boolean] {
-      expectedOpt match {
-        case Some(expected) =>
-          client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(requestKeyValue.row)) { jedis =>
-            try {
-              jedis.set(requestKeyValue.row, expected.value) == "OK"
-            } catch {
-              case ex: Throwable =>
-                logger.error(s"writeLock transaction failed old : $requestKeyValue, expected : $expectedOpt", ex)
-                throw ex
-            }
-          } match {
-            case Success(b) => b
-            case Failure(e) =>
-              logger.error(s"writeLock failed old : $requestKeyValue, expected : $expectedOpt", e)
-              false
+      client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(requestKeyValue.row)) { jedis =>
+        try {
+          expectedOpt match {
+            case Some(expected) =>
+                jedis.set(expected.row, requestKeyValue.value) == "OK"
+            case None =>
+                jedis.set(requestKeyValue.row, requestKeyValue.value) == "OK"
           }
-        case None => false
+        } catch {
+          case ex: Throwable =>
+            logger.error(s"writeLock transaction failed old : $requestKeyValue, expected : $expectedOpt", ex)
+            throw ex
+        }
+      } match {
+        case Success(b) => b
+        case Failure(e) =>
+          logger.error(s"writeLock failed old : $requestKeyValue, expected : $expectedOpt", e)
+          false
       }
     }
   }

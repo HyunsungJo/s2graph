@@ -347,6 +347,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   def mutateEdgesInner(edges: Seq[Edge],
                        checkConsistency: Boolean,
                        withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeMutate)): Future[Boolean] = {
+    logger.info(s">> mutateEdgesInner called")
     if (!checkConsistency) {
       val zkQuorum = edges.head.label.hbaseZkAddr
       val futures = edges.map { edge =>
@@ -361,13 +362,18 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     } else {
       def commit(_edges: Seq[Edge], statusCode: Byte): Future[Boolean] = {
 
+        logger.info(s">> commit ")
+
         fetchSnapshotEdge(_edges.head) flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
+          logger.info(s">> fetch snapshot edge")
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
           logger.debug(s"${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
+          logger.info(s"${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
           //shouldReplace false.
           if (edgeUpdate.newSnapshotEdge.isEmpty && statusCode <= 0) {
             logger.debug(s"${newEdge.toLogString} drop.")
+            logger.info(s"${newEdge.toLogString} drop.")
             Future.successful(true)
           } else {
             commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, kvOpt, edgeUpdate).map { ret =>
@@ -732,6 +738,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                             oldSnapshotEdgeOpt: Option[Edge],
                             lockEdge: SnapshotEdge,
                             oldBytes: Array[Byte]): Future[Boolean] = {
+    logger.info(s">> acquireLock")
     if (statusCode >= 1) {
       logger.debug(s"skip acquireLock: [$statusCode]\n${edge.toLogString}")
       Future.successful(true)
@@ -883,6 +890,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
     val lockEdge = buildLockEdge(snapshotEdgeOpt, edge, kvOpt)
     val releaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, edgeUpdate)
+    logger.info(s">> commitUpdate $edge")
     val _process = commitProcess(edge, statusCode)(snapshotEdgeOpt, kvOpt) _
     snapshotEdgeOpt match {
       case None =>
