@@ -1,17 +1,19 @@
 package com.kakao.s2graph.core.storage.redis
 
+import java.util.concurrent.TimeUnit
+
+import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
-import com.kakao.s2graph.core.storage.hbase.GDeserializable
 import com.kakao.s2graph.core.storage.redis.jedis.JedisClient
-import com.kakao.s2graph.core.storage.{StorageDeserializable, SKeyValue, Storage}
+import com.kakao.s2graph.core.storage.{SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 
 import scala.collection.JavaConversions._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Promise, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 /**
@@ -20,6 +22,14 @@ import scala.util.{Failure, Success}
 class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Future[QueryRequestWithResult]](config) {
   import GraphUtil._
+
+  val futureCache = CacheBuilder.newBuilder()
+    .initialCapacity(maxSize)
+    .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+    .expireAfterWrite(expireAfterWrite, TimeUnit.MILLISECONDS)
+    .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
+    .maximumSize(maxSize).build[java.lang.Long, (Long, Future[QueryRequestWithResult])]()
+
 
   override val indexEdgeDeserializer = new RedisIndexEdgeDeserializable
   override val snapshotEdgeDeserializer = new RedisSnapshotEdgeDeserializable
@@ -219,85 +229,79 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     override def fetch(queryRequest: QueryRequest,
                        prevStepScore: Double,
                        isInnerCall: Boolean,
-                       parentEdges: Seq[EdgeWithScore]): Future[QueryRequestWithResult] = ???
-//  override def fetch(queryRequest: QueryRequest,
-//                     prevStepScore: Double,
-//                     isInnerCall: Boolean,
-//                     parentEdges: Seq[EdgeWithScore]): Future[QueryRequestWithResult] = {
-//
-//    def fetchInner(request: RedisGetRequest) = {
-//      storage.get(request) map { values =>
-//        val edgeWithScores = storage.toEdges(values.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-//        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0 ) {
-//          sample(edgeWithScores, queryRequest.queryParam.sample)
-//        } else edgeWithScores
-//        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
-//      } recover {
-//        case e: Exception =>
-//          logger.error(s"fetchQueryParam failed. fallback return.", e)
-//          QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
-//      }
-//    }
-//
-//    def checkAndExpire(request: RedisGetRequest,
-//                       cacheKey: Long,
-//                       cacheTTL: Long,
-//                       cachedAt: Long,
-//                       defer: Future[QueryRequestWithResult]): Future[QueryRequestWithResult] = {
-//
-//      if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
-//        // future is too old. so need to expire and fetch new data from storage.
-//        futureCache.asMap().remove(cacheKey)
-//        val newPromise = Promise[QueryRequestWithResult]()
-//        val newFuture = newPromise.future
-//        futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), newFuture)) match {
-//          case null =>
-//            // only one thread succeed to come here concurrently
-//            // initiate fetch to storage then add callback on complete to finish promise.
-//            fetchInner(request) map { queryRequestWithResult =>
-//              newPromise.trySuccess(queryRequestWithResult)
-//              queryRequestWithResult
-//            }
-//            newFuture
-//          case (cachedAt, oldDefer) => oldDefer
-//        }
-//      } else {
-//        // future is not to old so reuse it.
-//        defer
-//      }
-//    }
-//
-//    val queryParam = queryRequest.queryParam
-//    val cacheTTL = queryParam.cacheTTLInMillis
-//    val request = buildRequest(queryRequest)
-//    if (cacheTTL <= 0) fetchInner(request)
-//    else {
-//      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
-//      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
-//
-//      val cacheVal = futureCache.getIfPresent(cacheKey)
-//      cacheVal match {
-//        case null =>
-//          // here there is no promise set up for this cacheKey so we need to set promise on future cache.
-//          val promise = Promise[QueryRequestWithResult]()
-//          val future = promise.future
-//          val now = System.currentTimeMillis()
-//          val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, future)) match {
-//            case null =>
-//              fetchInner(request) map { queryRequestWithResult =>
-//                promise.trySuccess(queryRequestWithResult)
-//                queryRequestWithResult
-//              }
-//              (now, future)
-//            case oldVal => oldVal
-//          }
-//          checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
-//        case (cachedAt, defer) =>
-//          checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
-//      }
-//    }
-//
-//  }
+                       parentEdges: Seq[EdgeWithScore]): Future[QueryRequestWithResult] = {
+  def fetchInner(request: RedisRPC) = {
+    fetchKeyValuesInner(request).map { values =>
+      val edgeWithScores = toEdges(values, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
+      val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0 ) {
+        sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
+      } else edgeWithScores
+      QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
+    }.recover{ case ex: Exception =>
+      logger.error(s"fetchInner failed. fallback return. $request}", ex)
+      QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
+    }
+  }
+
+  def checkAndExpire(request: RedisRPC,
+                     cacheKey: Long,
+                     cacheTTL: Long,
+                     cachedAt: Long,
+                     defer: Future[QueryRequestWithResult]): Future[QueryRequestWithResult] = {
+
+    if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
+      // future is too old. so need to expire and fetch new data from storage.
+      futureCache.asMap().remove(cacheKey)
+      val newPromise = Promise[QueryRequestWithResult]()
+      val newFuture = newPromise.future
+      futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), newFuture)) match {
+        case null =>
+          // only one thread succeed to come here concurrently
+          // initiate fetch to storage then add callback on complete to finish promise.
+          fetchInner(request) map { queryRequestWithResult =>
+            newPromise.trySuccess(queryRequestWithResult)
+            queryRequestWithResult
+          }
+          newFuture
+        case (cachedAt, oldDefer) => oldDefer
+      }
+    } else {
+      // future is not to old so reuse it.
+      defer
+    }
+  }
+
+  val queryParam = queryRequest.queryParam
+  val cacheTTL = queryParam.cacheTTLInMillis
+  val request = buildRequest(queryRequest)
+  if (cacheTTL <= 0) fetchInner(request)
+  else {
+    val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+    val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+
+    val cacheVal = futureCache.getIfPresent(cacheKey)
+    cacheVal match {
+      case null =>
+        // here there is no promise set up for this cacheKey so we need to set promise on future cache.
+        val promise = Promise[QueryRequestWithResult]()
+        val future = promise.future
+        val now = System.currentTimeMillis()
+        val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, future)) match {
+          case null =>
+            fetchInner(request) map { queryRequestWithResult =>
+              promise.trySuccess(queryRequestWithResult)
+              queryRequestWithResult
+            }
+            (now, future)
+          case oldVal => oldVal
+        }
+        checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+      case (cachedAt, defer) =>
+        checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+    }
+  }
+
+}
 
   /**
    * fetch IndexEdges for given request from storage.
@@ -408,5 +412,15 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       }
 
     Future.sequence(reads)
+  }
+
+  private def toCacheKeyBytes(redisRpc: RedisRPC): Array[Byte] = {
+    redisRpc match {
+      case getRequest: RedisGetRequest => getRequest.key
+      case snapshotRequest: RedisSnapshotGetRequest => snapshotRequest.key
+      case _ =>
+        logger.error(s"toCacheKeyBytes failed. not supported class type. $redisRpc")
+        Array.empty[Byte]
+    }
   }
 }
