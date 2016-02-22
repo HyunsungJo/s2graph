@@ -6,7 +6,7 @@ import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.redis.jedis.JedisClient
-import com.kakao.s2graph.core.storage.{SKeyValue, Storage}
+import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
@@ -17,7 +17,7 @@ import scala.concurrent.{Promise, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 /**
- * Created by jojo on 2/18/16.
+ * @author Junki Kim (wishoping@gmail.com), Hyunsung Jo (hyunsung.jo@gmail.com) on 2016/Feb/19.
  */
 class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Future[QueryRequestWithResult]](config) {
@@ -309,7 +309,14 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @param request
    * @return
    */
-  override def fetchIndexEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = ???
+  override def fetchIndexEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = {
+    val defer = fetchKeyValuesInner(request.asInstanceOf[RedisRPC])
+    defer.map { kvsArr =>
+      kvsArr.map { kv =>
+        implicitly[CanSKeyValue[SKeyValue]].toSKeyValue(kv)
+      }
+    }
+  }
 
   /**
    * write requestKeyValue into storage if the current value in storage that is stored matches.
@@ -372,7 +379,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @param request
    * @return
    */
-  override def fetchSnapshotEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = ???
+  override def fetchSnapshotEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = fetchIndexEdgeKeyValues(request)
 
   /**
    * decide how to apply given edges(indexProps values + Map(_count -> countVal)) into storage.
