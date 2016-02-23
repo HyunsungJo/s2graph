@@ -7,6 +7,7 @@ import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeseriali
 import com.kakao.s2graph.core.types.{GraphType, InnerVal, InnerValLike, TargetVertexId, VertexId}
 import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, IndexEdge, QueryParam, Vertex}
+import org.apache.hadoop.hbase.util.Bytes
 
 /**
  * @author Junki Kim (wishoping@gmail.com) and Hyunsung Jo (hyunsung.jo@gmail.com) on 2016/Feb/19.
@@ -36,37 +37,42 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
    * @return
    */
   private def parseQualifier(kv: SKeyValue, totalQualifierLen: Int, version: String): QualifierRaw = {
-    var qualifierLen = 0
-    // skip first byte: qualifier length
-    var pos = 1
-    val (idxPropsRaw, tgtVertexIdRaw, tgtVertexIdLen, timestamp) = {
-      logger.info(s">> [parseQualifier] key: ${GraphUtil.bytesToHexString(kv.row)}")
-      logger.info(s">> [parseQualifier] qualifier: ${GraphUtil.bytesToHexString(kv.qualifier)}")
-      logger.info(s">> [parseQualifier] value: ${GraphUtil.bytesToHexString(kv.value)}")
-      val (props, endAt) = bytesToProps(kv.value, pos, version)
-      pos = endAt
-      qualifierLen += endAt
+    kv.operation match {
+      case SKeyValue.Increment =>
+        (Array.empty[(Byte, InnerValLike)], VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version)), GraphUtil.toOp("increment").get, true, 0, 0)
+      case _ =>
+        var qualifierLen = 0
+        // skip first byte: qualifier length
+        var pos = 1
+        val (idxPropsRaw, tgtVertexIdRaw, tgtVertexIdLen, timestamp) = {
+          logger.info(s">> [parseQualifier] key: ${GraphUtil.bytesToHexString(kv.row)}")
+          logger.info(s">> [parseQualifier] qualifier: ${GraphUtil.bytesToHexString(kv.qualifier)}")
+          logger.info(s">> [parseQualifier] value: ${GraphUtil.bytesToHexString(kv.value)}")
+          val (props, endAt) = bytesToProps(kv.value, pos, version)
+          pos = endAt
+          qualifierLen += endAt
 
-      // get timestamp value
-      val (tsInnerVal, numOfBytesUsed) = InnerVal.fromBytes(kv.value, pos, 0, version, false)
-      val ts = tsInnerVal.value.toString.toLong
-      pos += numOfBytesUsed
-      qualifierLen += numOfBytesUsed
+          // get timestamp value
+          val (tsInnerVal, numOfBytesUsed) = InnerVal.fromBytes(kv.value, pos, 0, version, false)
+          val ts = tsInnerVal.value.toString.toLong
+          pos += numOfBytesUsed
+          qualifierLen += numOfBytesUsed
 
-      val (tgtVertexId, tgtVertexIdLen) =
-        if (pos == totalQualifierLen) { // target id is included in qualifier
-          (GraphType.defaultTgtVertexId, 0)
-        } else {
-          TargetVertexId.fromBytes(kv.value, pos, kv.value.length, version)
+          val (tgtVertexId, tgtVertexIdLen) =
+            if (pos == totalQualifierLen) { // target id is included in qualifier
+              (VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version)), 0)
+            } else {
+              TargetVertexId.fromBytes(kv.value, pos, kv.value.length, version)
+            }
+          pos += tgtVertexIdLen
+          qualifierLen += tgtVertexIdLen
+          (props, tgtVertexId, tgtVertexIdLen, ts)
         }
-      pos += tgtVertexIdLen
-      qualifierLen += tgtVertexIdLen
-      (props, tgtVertexId, tgtVertexIdLen, ts)
-    }
-    val op = kv.value(totalQualifierLen)
-    pos += 1
+        val op = kv.value(totalQualifierLen)
+        pos += 1
 
-    (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdLen != 0, timestamp, pos)
+        (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdLen != 0, timestamp, pos)
+    }
   }
 
   private def parseValue(kv: SKeyValue, offset: Int, version: String): ValueRaw = {
@@ -75,8 +81,16 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
   }
 
   private def parseDegreeValue(kv: SKeyValue, offset: Int, version: String): ValueRaw = {
-    (Array.empty[(Byte, InnerValLike)], 0)
+    (Array.fill[(Byte, InnerValLike)](1)(LabelMeta.degreeSeq -> InnerVal.withLong(Bytes.toLong(kv.value), version)), 0)
   }
+
+  /**
+    * Read first byte as qualifier length and check if length equals 0
+    *
+    * @param kv
+    * @return true if first byte is zero value
+    */
+  private def isDegree(kv: SKeyValue) = kv.operation == SKeyValue.Increment
 
   override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam,
                                               _kvs: Seq[T],
@@ -102,6 +116,8 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
       val countVal = amount.value.toString.toLong
       val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
       (dummyProps, 8)
+    } else if ( isDegree(kv) ) {
+      parseDegreeValue(kv, numBytesRead, version)
     } else {
       // non-indexed property key/ value retrieval
 
@@ -129,6 +145,7 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
     val mergedProps =
       if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
       else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(timestamp, version))
+    logger.info(s">> Src vertex ID : $srcVertexId, Tgt vertex ID : $tgtVertexId, props : $mergedProps")
 
     IndexEdge(Vertex(srcVertexId, timestamp), Vertex(tgtVertexId, timestamp), labelWithDir, op, timestamp, labelIdxSeq, mergedProps)
   }

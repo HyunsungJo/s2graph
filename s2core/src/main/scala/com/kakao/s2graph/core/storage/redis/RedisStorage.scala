@@ -182,11 +182,10 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   }
 
   private def fetchKeyValuesInner(request: RedisRPC) = {
-    logger.info(s">> fetchKeyValuesInner")
     Future[Seq[SKeyValue]] {
       // send rpc call to Redis instance
       client.doBlockWithKey[Seq[SKeyValue]]("" /* sharding key */) { jedis =>
-        logger.info(s">> jedis gogo; key : ${bytesToHexString(request.key)},")
+        val paddedBytes = Array.fill[Byte](2)(0)
         request match {
           case req@RedisGetRequest(_) =>
             logger.info(s">> min : ${bytesToHexString(req.min)}," +
@@ -194,14 +193,18 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               s"offset :${req.offset}," +
               s"count : ${req.count}")
             val result = jedis.zrangeByLex(req.key, req.min, req.max, req.offset, req.count).toSeq.map(v =>
-              SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], v, 0L)
+              SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], v, 0L)
             )
             if (req.isIncludeDegree) {
               val degree = jedis.zcard(req.key)
               val degreeBytes = Bytes.toBytes(degree)
               logger.info(s">> degree : $degree, bytes : ${GraphUtil.bytesToHexString(degreeBytes)}")
-              val zeroLenBytes = Array.fill[Byte](1)(0.toByte)
-              result :+ SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], Bytes.add(zeroLenBytes, degreeBytes), 0L)
+//              val zeroLenBytes = Array.fill[Byte](1)(0)
+//              val qualifier = Bytes.add(zeroLenBytes, Bytes.toBytes(0.toLong))
+//              val qLen = Array.fill[Byte](1)(qualifier.length.toByte)
+//              val value = Bytes.add(qLen, qualifier, degreeBytes)
+              // use cf field as a degree flag(fill zeroLenBytes)
+              result :+ SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], degreeBytes, 0L, operation = SKeyValue.Increment)
             } else result
           case req@RedisSnapshotGetRequest(_) =>
             logger.info(s">> get snapshotedge , key : ${GraphUtil.bytesToHexString(req.key)}")
@@ -211,7 +214,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
             }
             else {
               logger.info(s">> reduls : ${GraphUtil.bytesToHexString(_result)}")
-              val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L)
+              val snapshot = SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L, operation = SKeyValue.SnapshotPut)
               Seq[SKeyValue](snapshot)
             }
         }
