@@ -50,7 +50,7 @@ case class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends StorageSeria
      *
      *  ** !Serialize operation code byte after target id or series of index props bytes
      */
-    val timestamp = InnerVal(indexEdge.ts).bytes
+    val timestamp = InnerVal(BigDecimal(indexEdge.ts)).bytes
     val qualifier =
       (idxPropsMap.get(LabelMeta.toSeq) match {
         case None => Bytes.add(idxPropsBytes, timestamp, tgtIdBytes)

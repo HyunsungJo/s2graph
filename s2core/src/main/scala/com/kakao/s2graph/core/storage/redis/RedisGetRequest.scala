@@ -1,5 +1,7 @@
 package com.kakao.s2graph.core.storage.redis
 
+import com.kakao.s2graph.core.GraphUtil
+
 /**
  * @author Junki Kim (wishoping@gmail.com), Hyunsung Jo (hyunsung.jo@gmail.com) on 2016/Feb/19.
  */
@@ -53,6 +55,10 @@ case class RedisGetRequest(k: Array[Byte]) extends RedisRPC {
 
     this.min = min; this.minInclusive = minInclusive; this.max = max; this.maxInclusive = maxInclusive; this.minTime = minTime; this.maxTime = maxTime;
     this
+  }
+
+  override def toString() = {
+    s"[RedisGetRequest] Key : ${GraphUtil.bytesToHexString(key)}"
   }
 
 }

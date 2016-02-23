@@ -3,7 +3,7 @@ package com.kakao.s2graph.core.Integrate
 import java.util.concurrent.TimeUnit
 
 import com.kakao.s2graph.core.V3Test
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -25,7 +25,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
   test("Strong consistency deleteAll", V3Test) {
     val deletedAt = 100
-    var result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
+    var result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
 
     println(result)
     (result \ "results").as[List[JsValue]].size should be(3)
@@ -51,15 +51,15 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     // 10 -> out -> 20 should not be in result.
     (result \ "results").as[List[JsValue]].size should be(1)
     (result \\ "to").size should be(1)
-    (result \\ "to").head.as[String] should be("21")
+    (result \\ "to").head.as[Long] should be(21l)
 
-    result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
+    result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
     println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
 
-    result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
+    result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
     println(result)
 
     (result \ "results").as[List[JsValue]].size should be(3)
@@ -237,6 +237,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
       println(lastOps.toList)
       println(result)
+      println(s">> ${Json.prettyPrint(result)}")
+      println(s">> resultDegree : $resultDegree, expectedDegree : $expectedDegree, resultSize : $resultSize")
 
       val ret = resultDegree == expectedDegree && resultSize == resultDegree
       if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")

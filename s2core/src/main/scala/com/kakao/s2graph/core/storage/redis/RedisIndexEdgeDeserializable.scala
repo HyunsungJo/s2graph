@@ -54,7 +54,11 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
 
           // get timestamp value
           val (tsInnerVal, numOfBytesUsed) = InnerVal.fromBytes(kv.value, pos, 0, version, false)
-          val ts = tsInnerVal.value.toString.toLong
+          val ts = tsInnerVal.value match {
+            case n: BigDecimal => n.bigDecimal.longValue()
+            case _ => tsInnerVal.toString().toLong
+          }
+
           pos += numOfBytesUsed
           qualifierLen += numOfBytesUsed
 
