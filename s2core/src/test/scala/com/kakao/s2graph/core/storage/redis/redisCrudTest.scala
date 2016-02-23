@@ -32,6 +32,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
 
     graph = new Graph(config)(ExecutionContext.Implicits.global)
     parser = new RequestParser(graph.config)
+    management = new Management(graph)
     initTestData()
   }
 
