@@ -30,6 +30,15 @@ object Management extends JSONParser {
 
   val DefaultCompressionAlgorithm = "gz"
 
+  def createService(serviceName: String,
+                    cluster: String, hTableName: String,
+                    preSplitSize: Int, hTableTTL: Option[Int],
+                    compressionAlgorithm: String): Try[Service] = {
+
+    Model withTx { implicit session =>
+      Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
+    }
+  }
 
   def findService(serviceName: String) = {
     Service.findByName(serviceName, useCache = false)
@@ -47,8 +56,6 @@ object Management extends JSONParser {
 
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
-
-
 
   def createServiceColumn(serviceName: String,
                           columnName: String,
@@ -176,7 +183,7 @@ object Management extends JSONParser {
     val label = tryOption(labelStr, getServiceLable)
     val dir =
       if (direction == "")
-//        GraphUtil.toDirection(label.direction)
+      //        GraphUtil.toDirection(label.direction)
         GraphUtil.directions("out")
       else
         GraphUtil.toDirection(direction)
@@ -270,7 +277,9 @@ object Management extends JSONParser {
 }
 
 class Management(graph: Graph) {
+
   import Management._
+
   val storage = graph.storage
 
   def createTable(zkAddr: String,
@@ -289,6 +298,7 @@ class Management(graph: Graph) {
 
     Model withTx { implicit session =>
       val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
+
       /** create hbase table for service */
       storage.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
       service
@@ -321,6 +331,7 @@ class Management(graph: Graph) {
         case Some(l) =>
           throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
         case None =>
+
           /** create all models */
           val newLabel = Label.insertAll(label,
             srcServiceName, srcColumnName, srcColumnType,
