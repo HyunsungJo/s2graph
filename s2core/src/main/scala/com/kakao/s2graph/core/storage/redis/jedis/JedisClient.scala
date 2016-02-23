@@ -28,7 +28,7 @@ class JedisClient(config: Config) {
 
   val poolConfig = new JedisPoolConfig()
   poolConfig.setMaxTotal(150)
-  poolConfig.setMaxIdle(50)
+  poolConfig.setMaxIdle(100)
   poolConfig.setMaxWaitMillis(200)
 
   val jedisPools = instances.map { case (host, port) =>

@@ -14,6 +14,7 @@ import org.apache.hadoop.hbase.util.Bytes
 
 import scala.collection.JavaConversions._
 import scala.concurrent.{Promise, ExecutionContext, Future}
+import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
 
 /**
@@ -31,6 +32,13 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
     .maximumSize(maxSize).build[java.lang.Long, (Long, Future[QueryRequestWithResult])]()
 
+  /** Simple Vertex Cache */
+  private val vertexCache = CacheBuilder.newBuilder()
+    .initialCapacity(maxSize)
+    .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+    .expireAfterWrite(expireAfterWrite, TimeUnit.MILLISECONDS)
+    .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
+    .maximumSize(maxSize).build[java.lang.Integer, Option[Vertex]]()
 
   override val indexEdgeDeserializer = new RedisIndexEdgeDeserializable
   override val snapshotEdgeDeserializer = new RedisSnapshotEdgeDeserializable
@@ -184,7 +192,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   private def fetchKeyValuesInner(request: RedisRPC) = {
     Future[Seq[SKeyValue]] {
       // send rpc call to Redis instance
-      client.doBlockWithKey[Seq[SKeyValue]]("" /* sharding key */) { jedis =>
+      client.doBlockWithKey[Seq[SKeyValue]](GraphUtil.bytesToHexString(request.key)) { jedis =>
         val paddedBytes = Array.fill[Byte](2)(0)
         request match {
           case req@RedisGetRequest(_) =>
@@ -335,6 +343,54 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
         implicitly[CanSKeyValue[SKeyValue]].toSKeyValue(kv)
       }
     }
+  }
+
+
+  override def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
+    def fromResult(queryParam: QueryParam,
+                   kvs: Seq[SKeyValue],
+                   version: String): Option[Vertex] = {
+
+      if (kvs.isEmpty) None
+      else {
+        Option(vertexDeserializer.fromKeyValues(queryParam, kvs, version, None))
+      }
+    }
+
+    val futures = vertices.map { vertex =>
+      logger.info(s"vertices: ${vertex.toLogString()}")
+      val kvs = vertexSerializer(vertex).toKeyValues
+      val get = new RedisGetRequest(kvs.head.row)
+      get.isIncludeDegree = false
+
+      val cacheKey = MurmurHash3.stringHash(get.toString)
+      val cacheVal = vertexCache.getIfPresent(cacheKey)
+      if (cacheVal == null) {
+        val result = client.doBlockWithKey[Set[SKeyValue]](GraphUtil.bytesToHexString(get.key)) { jedis =>
+          get.setFilter("-".getBytes, true, "+".getBytes, true)
+          logger.info(s"key: ${GraphUtil.bytesToHexString(get.key)}")
+          logger.info(s"min: ${GraphUtil.bytesToHexString(get.min)}")
+          logger.info(s"max: ${GraphUtil.bytesToHexString(get.max)}")
+          logger.info(s"offset: ${get.offset}")
+          logger.info(s"count: ${get.count}")
+          jedis.zrangeByLex(get.key, get.min, get.max).toSet[Array[Byte]].map(v =>
+            SKeyValue(Array.empty[Byte], get.key, Array.empty[Byte], Array.empty[Byte], v, 0L)
+          )
+        } match {
+          case Success(v) =>
+            v
+          case Failure(e) =>
+            logger.error(s"Redis vertex get fail: ", e)
+            Set[SKeyValue]()
+        }
+        val fetchVal = fromResult(QueryParam.Empty, result.toSeq, vertex.serviceColumn.schemaVersion)
+        Future.successful(fetchVal)
+      }
+
+      else Future.successful(cacheVal)
+    }
+
+    Future.sequence(futures).map { result => result.toList.flatten }
   }
 
   /**
