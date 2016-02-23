@@ -5,6 +5,7 @@ import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.hbase.GDeserializable
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
 import com.kakao.s2graph.core.types.{GraphType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -34,22 +35,18 @@ class RedisSnapshotEdgeDeserializable extends GDeserializable[SnapshotEdge]  {
     val schemaVer = queryParam.label.schemaVersion
     val cellVersion = kv.timestamp
 
-    /**
-     * put leading hash bytes for compatibility with legacy codes
-     * @param v Byte array to pad
-     * @return 2 bytes padded bytes array
-     */
-    def paddingHashBytes(v: Array[Byte]): Array[Byte] = Bytes.add( Array.fill[Byte](2)(0), v)
-
     /** rowKey */
     def parseRowV4(kv: SKeyValue, version: String) = {
-      var pos = 0
-      val newRow = paddingHashBytes(kv.row)
-      val (srcIdAndTgtId, srcIdAndTgtIdBytesLen) = SourceAndTargetVertexIdPair.fromBytes(newRow, pos, newRow.length, version)
+      var pos = -GraphUtil.bytesForMurMurHash
+      kv.row
+      val (srcIdAndTgtId, srcIdAndTgtIdBytesLen) = SourceAndTargetVertexIdPair.fromBytes(kv.row, pos, kv.row.length, version)
+      logger.info(s">> srcIdAndTgtId : $srcIdAndTgtId, len : $srcIdAndTgtIdBytesLen")
+      logger.info(s">> srcId : ${srcIdAndTgtId.srcInnerId}, tgtId : ${srcIdAndTgtId.tgtInnerId}")
       pos += srcIdAndTgtIdBytesLen
-      val labelWithDir = LabelWithDirection(Bytes.toInt(newRow, pos, 4))
+      val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
+      logger.info(s">> labelWithDir : $labelWithDir")
       pos += 4
-      val (labelIdxSeq, isSnapshot) = bytesToLabelIndexSeqWithIsSnapshot(newRow, pos)
+      val (labelIdxSeq, isSnapshot) = bytesToLabelIndexSeqWithIsSnapshot(kv.row, pos)
 
       val rowLen = srcIdAndTgtIdBytesLen + 4 + 1
       (srcIdAndTgtId.srcInnerId, srcIdAndTgtId.tgtInnerId, labelWithDir, labelIdxSeq, isSnapshot, rowLen)

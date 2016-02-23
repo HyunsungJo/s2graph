@@ -2,7 +2,7 @@ package com.kakao.s2graph.core.storage.redis
 
 import com.kakao.s2graph.core.mysqls.LabelIndex
 import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{GraphExceptions, SnapshotEdge}
+import com.kakao.s2graph.core.{GraphUtil, GraphExceptions, SnapshotEdge}
 import com.kakao.s2graph.core.storage.{SKeyValue, StorageSerializable}
 import com.kakao.s2graph.core.types.{SourceAndTargetVertexIdPair, GraphType}
 import org.apache.hadoop.hbase.util.Bytes
@@ -37,7 +37,7 @@ case class RedisSnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Sto
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(LabelIndex.DefaultSeq, isSnapshot = true)
 
     val row = Bytes.add(
-      srcIdAndTgtIdBytes.takeRight(srcIdAndTgtIdBytes.length - 2),
+      srcIdAndTgtIdBytes.drop(GraphUtil.bytesForMurMurHash),
       labelWithDirBytes,
       labelIndexSeqWithIsInvertedBytes
     )

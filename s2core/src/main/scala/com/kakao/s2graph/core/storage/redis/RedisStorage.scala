@@ -214,7 +214,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
             }
             else {
               logger.info(s">> reduls : ${GraphUtil.bytesToHexString(_result)}")
-              val snapshot = SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L, operation = SKeyValue.SnapshotPut)
+              val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L, operation = SKeyValue.SnapshotPut)
               Seq[SKeyValue](snapshot)
             }
         }
