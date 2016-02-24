@@ -1129,10 +1129,20 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   /** EdgeMutate */
   def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] = {
     val deleteMutations = edgeMutate.edgesToDelete.flatMap { indexEdge =>
-      indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
+      val a = indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
+      a.map{ b =>
+        val c = GraphUtil.bytesToHexString _
+        logger.error(s"***EDGE DELETE*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
+      }
+      a
     }
     val insertMutations = edgeMutate.edgesToInsert.flatMap { indexEdge =>
-      indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
+      val a = indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
+      a.map{ b =>
+        val c = GraphUtil.bytesToHexString _
+        logger.error(s"***EDGE PUT*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
+      }
+      a
     }
 
     deleteMutations ++ insertMutations

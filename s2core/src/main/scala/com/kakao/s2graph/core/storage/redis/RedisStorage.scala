@@ -13,7 +13,7 @@ import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 
 import scala.collection.JavaConversions._
-import scala.concurrent.{Promise, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
 
@@ -22,8 +22,6 @@ import scala.util.{Failure, Success}
  */
 class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Future[QueryRequestWithResult]](config) {
-
-  import GraphUtil._
 
   val futureCache = CacheBuilder.newBuilder()
     .initialCapacity(maxSize)
@@ -53,7 +51,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   private val RedisZsetScore = 1
 
   private val client = new JedisClient(config)
-  logger.info(s">> jedis client initialized")
 
   /**
    * decide how to store given SKeyValue into storage using storage's client.
@@ -70,23 +67,23 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return ack message from storage.
    */
   override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
-    logger.info(s">> [writeToStorage]")
     val future = Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
         kv.operation match {
           case SKeyValue.Put if kv.qualifier.length > 0 =>
-            logger.info(s">> [writeToStorage] vertex put : row - ${GraphUtil.bytesToHexString(kv.row)}, q : ${GraphUtil.bytesToHexString(kv.qualifier)}, v : ${GraphUtil.bytesToHexString(kv.value)}")
             jedis.zadd(kv.row, RedisZsetScore, kv.qualifier ++ kv.value) == 1
           case SKeyValue.Put if kv.qualifier.length == 0 =>
             if (kv.operation == SKeyValue.SnapshotPut) {
-              logger.info(s">> [writeToStorage] snapshot edge put : row - ${GraphUtil.bytesToHexString(kv.row)}, q : ${GraphUtil.bytesToHexString(kv.qualifier)}, v : ${GraphUtil.bytesToHexString(kv.value)}")
               jedis.set(kv.row, kv.value) == 1
             } else {
-              logger.info(s">> [writeToStorage] index edge put : row - ${GraphUtil.bytesToHexString(kv.row)}, q : ${GraphUtil.bytesToHexString(kv.qualifier)}, v : ${GraphUtil.bytesToHexString(kv.value)}")
               jedis.zadd(kv.row, RedisZsetScore, kv.value) == 1
             }
-          case SKeyValue.Delete =>
-            jedis.zrem(kv.row, kv.value) == 1
+          case SKeyValue.Delete if kv.qualifier.length > 0 =>
+            jedis.zrem(kv.row, kv.qualifier ++ kv.value) == 1
+          case SKeyValue.Delete if kv.qualifier.length == 0 =>
+            val r = jedis.zrem(kv.row, kv.value) == 1
+            logger.info(s">> [Delete res]: $r")
+            r
           case SKeyValue.Increment => true // no need for degree increment since Redis storage uses ZCARD for degree
         }
       } match {
@@ -125,7 +122,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    */
 
   override def buildRequest(queryRequest: QueryRequest): RedisRPC = {
-    logger.info(s">> buildRequest")
     val srcVertex = queryRequest.vertex
 
     val queryParam = queryRequest.queryParam
@@ -160,7 +156,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       val indexedEdge = indexedEdgeOpt.get
       (indexEdgeSerializer(indexedEdge).toKeyValues.head, false)
     }
-    logger.info(s">> isSnapshot : $isSnapshot")
 
     // Redis supports client-side sharding and does not require hash key so remove heading hash key(2 bytes)
     val rowkey = kv.row
@@ -179,8 +174,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
         else
           ("-".getBytes, "+".getBytes)
 
-      logger.info(s">>> min : ${bytesToHexString(min)} , max : ${bytesToHexString(max)}")
-
 
       _get.setCount(queryParam.limit)
         .setOffset(queryParam.offset)
@@ -196,32 +189,20 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
         val paddedBytes = Array.fill[Byte](2)(0)
         request match {
           case req@RedisGetRequest(_) =>
-            logger.info(s">> min : ${bytesToHexString(req.min)}," +
-              s"max : ${bytesToHexString(req.max)}," +
-              s"offset :${req.offset}," +
-              s"count : ${req.count}")
             val result = jedis.zrangeByLex(req.key, req.min, req.max, req.offset, req.count).toSeq.map(v =>
               SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], v, 0L)
             )
             if (req.isIncludeDegree) {
               val degree = jedis.zcard(req.key)
               val degreeBytes = Bytes.toBytes(degree)
-              logger.info(s">> degree : $degree, bytes : ${GraphUtil.bytesToHexString(degreeBytes)}")
-//              val zeroLenBytes = Array.fill[Byte](1)(0)
-//              val qualifier = Bytes.add(zeroLenBytes, Bytes.toBytes(0.toLong))
-//              val qLen = Array.fill[Byte](1)(qualifier.length.toByte)
-//              val value = Bytes.add(qLen, qualifier, degreeBytes)
-              // use cf field as a degree flag(fill zeroLenBytes)
               result :+ SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], degreeBytes, 0L, operation = SKeyValue.Increment)
             } else result
           case req@RedisSnapshotGetRequest(_) =>
-            logger.info(s">> get snapshotedge , key : ${GraphUtil.bytesToHexString(req.key)}")
             val _result = jedis.get(req.key)
             if (_result == null) {
               Seq.empty[SKeyValue]
             }
             else {
-              logger.info(s">> reduls : ${GraphUtil.bytesToHexString(_result)}")
               val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L, operation = SKeyValue.SnapshotPut)
               Seq[SKeyValue](snapshot)
             }
@@ -229,7 +210,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       } match {
         case Success(v) => v
         case Failure(e) =>
-          logger.info(s">> get fail!! $e")
+          logger.error(s">> get fail!! $e")
           e.printStackTrace()
           Seq[SKeyValue]()
       }
@@ -358,7 +339,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
 
     val futures = vertices.map { vertex =>
-      logger.info(s"vertices: ${vertex.toLogString()}")
       val kvs = vertexSerializer(vertex).toKeyValues
       val get = new RedisGetRequest(kvs.head.row)
       get.isIncludeDegree = false
@@ -368,11 +348,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       if (cacheVal == null) {
         val result = client.doBlockWithKey[Set[SKeyValue]](GraphUtil.bytesToHexString(get.key)) { jedis =>
           get.setFilter("-".getBytes, true, "+".getBytes, true)
-          logger.info(s"key: ${GraphUtil.bytesToHexString(get.key)}")
-          logger.info(s"min: ${GraphUtil.bytesToHexString(get.min)}")
-          logger.info(s"max: ${GraphUtil.bytesToHexString(get.max)}")
-          logger.info(s"offset: ${get.offset}")
-          logger.info(s"count: ${get.count}")
           jedis.zrangeByLex(get.key, get.min, get.max).toSet[Array[Byte]].map(v =>
             SKeyValue(Array.empty[Byte], get.key, Array.empty[Byte], Array.empty[Byte], v, 0L)
           )
@@ -417,15 +392,16 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return
    */
   override def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
-    logger.info(s">> [writeLock]")
     Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(requestKeyValue.row)) { jedis =>
         try {
           expectedOpt match {
             case Some(expected) =>
-                jedis.set(expected.row, requestKeyValue.value) == "OK"
+              val c = GraphUtil.bytesToHexString _
+              logger.error(s"@@ [${Bytes.compareTo(expected.row, requestKeyValue.row)}}] expected row : ${c(expected.row)} | req row : ${c(requestKeyValue.row)}")
+              jedis.set(expected.row, requestKeyValue.value) == "OK"
             case None =>
-                jedis.set(requestKeyValue.row, requestKeyValue.value) == "OK"
+              jedis.set(requestKeyValue.row, requestKeyValue.value) == "OK"
           }
         } catch {
           case ex: Throwable =>

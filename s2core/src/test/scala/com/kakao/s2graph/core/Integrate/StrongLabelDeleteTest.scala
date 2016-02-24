@@ -2,8 +2,9 @@ package com.kakao.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
 
-import com.kakao.s2graph.core.V3Test
-import play.api.libs.json.{JsNumber, JsValue, Json}
+import com.kakao.s2graph.core.{GraphUtil, V3Test}
+import org.apache.hadoop.hbase.util.Bytes
+import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -14,7 +15,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  test("Strong consistency select", V3Test) {
+  ignore("Strong consistency select", V3Test) {
     insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
@@ -23,11 +24,11 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
-  test("Strong consistency deleteAll", V3Test) {
+  ignore("Strong consistency deleteAll", V3Test) {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
 
-    println(result)
+//    println(result)
     (result \ "results").as[List[JsValue]].size should be(3)
 
     val deleteParam = Json.arr(
@@ -39,28 +40,28 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     deleteAllSync(deleteParam)
 
     result = getEdgesSync(query(11, direction = "out"))
-    println(result)
+//    println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     result = getEdgesSync(query(12, direction = "out"))
-    println(result)
+//    println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     result = getEdgesSync(query(10, direction = "out"))
-    println(result)
+//    println(result)
     // 10 -> out -> 20 should not be in result.
     (result \ "results").as[List[JsValue]].size should be(1)
     (result \\ "to").size should be(1)
     (result \\ "to").head.as[Long] should be(21l)
 
     result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
-    println(result)
+//    println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
 
     result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
-    println(result)
+//    println(result)
 
     (result \ "results").as[List[JsValue]].size should be(3)
   }
@@ -73,6 +74,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         val src = System.currentTimeMillis()
 
         val (ret, last) = testInner(i, src)
+//        val (ret, last) = testInnerFail(i, src)
         ret should be(true)
         ret
       }
@@ -80,7 +82,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret.forall(identity)
   }
 
-  test("update delete 2", V3Test) {
+  ignore("update delete 2", V3Test) {
     val src = System.currentTimeMillis()
     var ts = 0L
 
@@ -101,7 +103,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         val deleteRet2 = deleteAllSync(deleteAllRequest2)
 
         val result = getEdgesSync(query(id = src))
-        println(result)
+//        println(result)
 
         val resultEdges = (result \ "results").as[Seq[JsValue]]
         resultEdges.isEmpty should be(true)
@@ -119,7 +121,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
     */
-  test("large degrees", V3Test) {
+  ignore("large degrees", V3Test) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -151,15 +153,15 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     //        println(result)
 
     val ret = resultSize == expectedDegree && resultDegree == resultSize
-    println(s"[MaxSize]: $maxSize")
-    println(s"[DeleteSize]: $deleteSize")
-    println(s"[ResultDegree]: $resultDegree")
-    println(s"[ExpectedDegree]: $expectedDegree")
-    println(s"[ResultSize]: $resultSize")
+//    println(s"[MaxSize]: $maxSize")
+//    println(s"[DeleteSize]: $deleteSize")
+//    println(s"[ResultDegree]: $resultDegree")
+//    println(s"[ExpectedDegree]: $expectedDegree")
+//    println(s"[ResultSize]: $resultSize")
     ret should be(true)
   }
 
-  test("deleteAll", V3Test) {
+  ignore("deleteAll", V3Test) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -187,7 +189,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     deleteAllSync(deleteAllRequest)
 
     val result = getEdgesSync(query(id = src))
-    println(result)
+//    println(result)
     val resultEdges = (result \ "results").as[Seq[JsValue]]
     resultEdges.isEmpty should be(true)
 
@@ -199,14 +201,15 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     val labelName = testLabelNameV3
     val maxTgtId = 10
-    val batchSize = 10
-    val testNum = 3
-    val numOfBatch = 10
+    val batchSize = 2
+    val testNum = 1
+    val numOfBatch = 2
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelNameV3
       val lastOps = Array.fill(maxTgtId)("none")
       var currentTs = startTs
+      println(s"currentTs ${src}: ${GraphUtil.bytesToHexString(Bytes.toBytes(src))}")
 
       val allRequests = for {
         ith <- 0 until numOfBatch
@@ -218,6 +221,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
           val op = if (Random.nextDouble() < 0.5) "delete" else "update"
 
           lastOps(tgt) = op
+          println(s"${currentTs} ${src+tgt}: ${GraphUtil.bytesToHexString(Bytes.toBytes(src+tgt))}")
           Seq(currentTs, op, "e", src, src + tgt, labelName, "{}").mkString("\t")
         }
 
@@ -235,15 +239,52 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val resultSize = (result \ "size").as[Long]
       val resultDegree = getDegree(result)
 
-      println(lastOps.toList)
-      println(result)
-      println(s">> ${Json.prettyPrint(result)}")
-      println(s">> resultDegree : $resultDegree, expectedDegree : $expectedDegree, resultSize : $resultSize")
+//      println(lastOps.toList)
+//      println(result)
+//      println(s">> ${Json.prettyPrint(result)}")
+//      println(s">> resultDegree : $resultDegree, expectedDegree : $expectedDegree, resultSize : $resultSize")
 
       val ret = resultDegree == expectedDegree && resultSize == resultDegree
       if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+      else println(s"[Contention Success]: $resultDegree, $expectedDegree")
 
       (ret, currentTs)
+    }
+
+
+    def testInnerFail(startTs: Long, src: Long) = {
+      val lastOps = Array.fill(maxTgtId)("none")
+      var currentTs = startTs
+      val allRequests = IndexedSeq(
+        Seq(1, "update", "e", 1456295586334L, 1456295586340L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(2, "update", "e", 1456295586334L, 1456295586339L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(3, "delete", "e", 1456295586334L, 1456295586339L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(4, "update", "e", 1456295586334L, 1456295586334L, "s2graph_label_test_v3", "{}").mkString("\t")
+      )
+      allRequests.foreach(println _)
+      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
+        insertEdgesAsync(bulkRequests: _*)
+      }
+
+      Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
+
+      val expectedDegree = lastOps.count(op => op != "delete" && op != "none")
+      val queryJson = query(id = src)
+      val result = getEdgesSync(queryJson)
+      val resultSize = (result \ "size").as[Long]
+      val resultDegree = getDegree(result)
+
+      //      println(lastOps.toList)
+      //      println(result)
+      //      println(s">> ${Json.prettyPrint(result)}")
+      //      println(s">> resultDegree : $resultDegree, expectedDegree : $expectedDegree, resultSize : $resultSize")
+
+      val ret = resultDegree == expectedDegree && resultSize == resultDegree
+      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+      else println(s"[Contention Success]: $resultDegree, $expectedDegree")
+
+      (ret, currentTs)
+
     }
 
     def bulkEdges(startTs: Int = 0) = Seq(
