@@ -366,10 +366,12 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
         fetchSnapshotEdge(_edges.head) flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
           logger.info(s">> fetch snapshot edge")
+          logger.error(s">> fetch snapshot edge : ${snapshotEdgeOpt}")
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
           logger.debug(s"${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
           logger.info(s"${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
+          logger.error(s"${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
           //shouldReplace false.
           if (edgeUpdate.newSnapshotEdge.isEmpty && statusCode <= 0) {
             logger.debug(s"${newEdge.toLogString} drop.")
@@ -415,7 +417,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
               }
 
               Thread.sleep(Random.nextInt(MaxBackOff))
-              logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
+              logger.error(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
             case ex: Exception =>
               logger.error("Unknown exception", ex)
@@ -1132,7 +1134,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val a = indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
       a.map{ b =>
         val c = GraphUtil.bytesToHexString _
-        logger.error(s"***EDGE DELETE*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
+//        logger.error(s"***EDGE DELETE*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
       }
       a
     }
@@ -1140,7 +1142,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val a = indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
       a.map{ b =>
         val c = GraphUtil.bytesToHexString _
-        logger.error(s"***EDGE PUT*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
+//        logger.error(s"***EDGE PUT*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
       }
       a
     }

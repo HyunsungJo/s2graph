@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
-import com.kakao.s2graph.core.storage.redis.jedis.JedisClient
+import com.kakao.s2graph.core.storage.redis.jedis.{JedisTransaction, JedisClient}
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
@@ -79,8 +79,10 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               jedis.zadd(kv.row, RedisZsetScore, kv.value) == 1
             }
           case SKeyValue.Delete if kv.qualifier.length > 0 =>
+//            logger.error(s">> Vertex Delete")
             jedis.zrem(kv.row, kv.qualifier ++ kv.value) == 1
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
+//            logger.error(s">> Edge Delete")
             val r = jedis.zrem(kv.row, kv.value) == 1
             logger.info(s">> [Delete res]: $r")
             r
@@ -398,8 +400,75 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
           expectedOpt match {
             case Some(expected) =>
               val c = GraphUtil.bytesToHexString _
-              logger.error(s"@@ [${Bytes.compareTo(expected.row, requestKeyValue.row)}}] expected row : ${c(expected.row)} | req row : ${c(requestKeyValue.row)}")
-              jedis.set(expected.row, requestKeyValue.value) == "OK"
+              val b = com.kakao.s2graph.core.storage.StorageDeserializable.bytesToKeyValuesWithTs _
+
+              jedis.watch(requestKeyValue.row)
+              val curVal = jedis.get(requestKeyValue.row)
+              val eq = Bytes.compareTo(curVal, expected.value) == 0
+
+              val data = Seq("\n","="*150,
+                s">> EQ? : $eq",
+                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
+                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
+                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
+                "-"*150,
+                s">> KEY : ${c(requestKeyValue.row)}",
+                "="*150
+              )
+              logger.error(data.mkString("\n"))
+
+
+              val result =
+                if ( Bytes.compareTo(expected.value, curVal) == 0 )  {
+                  val transaction = jedis.multi()
+                  try {
+                    transaction.set(requestKeyValue.row, requestKeyValue.value)
+                    transaction.exec()
+                  } catch {
+                    case e: Throwable =>
+                      logger.error(s">> error thrown", e)
+                      transaction.discard()
+                      false
+                  }
+                } else "[FAIL]"
+              logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+
+              result != null && result.toString.equals("[OK]")
+
+//              logger.error(data.mkString("\n"))
+//              jedis.watch(requestKeyValue.row)
+//              jedis.getClient.multi()
+//
+//              val transaction = new JedisTransaction(jedis.getClient)
+//
+//              try {
+//                val script: String =
+//                  """local key = KEYS[1]
+//                    |local oldData = ARGV[1]
+//                    |local value = ARGV[2]
+//                    |local data = redis.call('get', key)
+//                    |if data == oldData then
+//                    |  return redis.call('set', key, value)
+//                    |end
+//                    |return '0'
+//                  """.stripMargin
+//
+//                val keys = List[Array[Byte]](requestKeyValue.row)
+//                val argv = List[Array[Byte]](expected.value, requestKeyValue.value)
+//                transaction.evalWithString(script.getBytes, keys, argv)
+//                val result = transaction.exec()
+//                logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+//                if ( result != null && result.equals("[0]")) {
+//
+//                }
+//                result != null && result.toString.equals("[OK]")
+//              } catch {
+//                case e: Throwable =>
+//                  logger.error(s">> error thrown", e)
+//                  jedis.unwatch()
+//                  transaction.discard()
+//                  false
+//              }
             case None =>
               jedis.set(requestKeyValue.row, requestKeyValue.value) == "OK"
           }
