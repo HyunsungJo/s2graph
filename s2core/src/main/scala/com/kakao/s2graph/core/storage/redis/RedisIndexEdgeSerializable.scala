@@ -1,11 +1,11 @@
 package com.kakao.s2graph.core.storage.redis
 
 import com.kakao.s2graph.core.mysqls.LabelMeta
-import com.kakao.s2graph.core.types.v2.InnerVal
-import com.kakao.s2graph.core.{GraphUtil, IndexEdge}
 import com.kakao.s2graph.core.storage.{SKeyValue, StorageSerializable}
 import com.kakao.s2graph.core.types.VertexId
+import com.kakao.s2graph.core.types.v2.InnerVal
 import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -20,22 +20,10 @@ case class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends StorageSeria
   val idxPropsBytes = propsToBytes(indexEdge.orders)
 
   def toKeyValues: Seq[SKeyValue] = {
-    logger.info(s"<< [RedisIndexEdgeSerializable:toKeyValues] enter")
     val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes.drop(GraphUtil.bytesForMurMurHash)
     val labelWithDirBytes = indexEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
-
-    logger.info(s"\t<< [RedisIndexEdgeSerializable:toKeyValues] src[${indexEdge.srcVertex}] --> tgt[${indexEdge.tgtVertex}]")
-
-    logger.info(s"\t\t<< src vertex id : ${indexEdge.srcVertex.innerId}, bytes : ${GraphUtil.bytesToHexString(srcIdBytes)}")
-    logger.info(s"\t\t<< label with dir : ${indexEdge.labelWithDir}, ${GraphUtil.fromDirection(indexEdge.labelWithDir.dir)}, bytes : ${GraphUtil.bytesToHexString(labelWithDirBytes)}")
-    logger.info(s"\t\t<< label index : ${indexEdge.labelIndex.name}, seq : ${indexEdge.labelIndex.seq}")
-    logger.info(s"\t\t<< label index seq with inverted bytes : ${GraphUtil.bytesToHexString(labelIndexSeqWithIsInvertedBytes)}")
-
     val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
-    logger.info("")
-    logger.info(s"\t\t<< [RedisIndexEdgeSerializable:toKeyValues] row key : ${GraphUtil.bytesToHexString(row)}")
-    logger.info("")
     val tgtIdBytes = VertexId.toTargetVertexId(indexEdge.tgtVertex.id).bytes
 
     /**
@@ -60,7 +48,9 @@ case class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends StorageSeria
     val qualifierLen = Array.fill[Byte](1)(qualifier.length.toByte)
     val propsKv = propsToKeyValues(indexEdge.metas.toSeq)
 
+    val c = GraphUtil.bytesToHexString _
     val value = qualifierLen ++ qualifier ++ propsKv
+    logger.error(s"~~VALUE - row: ${c(row)}, val: ${c(value)}, qualLen: ${c(qualifierLen)}, qual: ${c(qualifier)}, props: ${c(propsKv)}")
     val emptyArray = Array.empty[Byte]
     val kv = SKeyValue(emptyArray, row, emptyArray, emptyArray, value, indexEdge.version)
 

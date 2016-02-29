@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
-import com.kakao.s2graph.core.storage.redis.jedis.{JedisTransaction, JedisClient}
+import com.kakao.s2graph.core.storage.redis.jedis.JedisClient
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger

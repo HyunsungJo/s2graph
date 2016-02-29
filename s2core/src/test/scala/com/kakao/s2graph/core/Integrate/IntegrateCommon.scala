@@ -236,30 +236,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
     "indices": [
-      {"name": "$index1", "propNames": ["weight", "time", "is_hidden", "is_blocked"]},
-      {"name": "$index2", "propNames": ["_timestamp"]}
     ],
     "props": [
-    {
-      "name": "time",
-      "dataType": "long",
-      "defaultValue": 0
-    },
-    {
-      "name": "weight",
-      "dataType": "long",
-      "defaultValue": 0
-    },
-    {
-      "name": "is_hidden",
-      "dataType": "boolean",
-      "defaultValue": false
-    },
-    {
-      "name": "is_blocked",
-      "dataType": "boolean",
-      "defaultValue": false
-    }
     ],
     "consistencyLevel": "strong",
     "schemaVersion": "v4",

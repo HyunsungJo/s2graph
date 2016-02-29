@@ -1134,7 +1134,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val a = indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
       a.map{ b =>
         val c = GraphUtil.bytesToHexString _
-//        logger.error(s"***EDGE DELETE*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
+        logger.error(s"~~~EDGE DELETE TS : ${b.timestamp}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
       }
       a
     }
@@ -1142,7 +1142,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val a = indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
       a.map{ b =>
         val c = GraphUtil.bytesToHexString _
-//        logger.error(s"***EDGE PUT*** TS : ${indexEdge.ts}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
+        logger.error(s"~~~EDGE PUT TS : ${b.timestamp}, Row : ${c(b.row)}, Q : ${c(b.qualifier)}, V : ${c(b.value)} ")
       }
       a
     }
