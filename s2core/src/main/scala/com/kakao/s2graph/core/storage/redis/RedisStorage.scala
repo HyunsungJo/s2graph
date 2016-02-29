@@ -431,7 +431,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                       false
                   }
                 } else "[FAIL]"
-              logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+              logger.error(s">> cas1 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
 
               result != null && result.toString.equals("[OK]")
 
@@ -490,7 +490,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                     transaction.discard()
                     false
                 }
-              logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+              logger.error(s">> cas2 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
 
               result != null && result.toString.equals("[OK]")
           }

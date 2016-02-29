@@ -201,9 +201,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     val labelName = testLabelNameV3
     val maxTgtId = 10
-    val batchSize = 10
-    val testNum = 3
-    val numOfBatch = 10
+    val batchSize = 2
+    val testNum = 2
+    val numOfBatch = 2
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelNameV3
@@ -225,9 +225,13 @@ class StrongLabelDeleteTest extends IntegrateCommon {
           Seq(currentTs, op, "e", src, src + tgt, labelName, "{}").mkString("\t")
         }
 
+      println "In Order:"
       allRequests.foreach(println(_))
+      val shuffled = Random.shuffle(allRequests)
+      println "Shuffled:"
+      shuffled.foreach(println _)
 
-      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
+      val futures = shuffled.grouped(batchSize).map { bulkRequests =>
         insertEdgesAsync(bulkRequests: _*)
       }
 
@@ -254,7 +258,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     def testInnerFail(startTs: Long, src: Long) = {
       val lastOps = Array.fill(maxTgtId)("none")
-      var currentTs = startTs
+      val currentTs = startTs
       val allRequests = IndexedSeq(
         Seq(1, "update", "e", 1456295586334L, 1456295586340L, "s2graph_label_test_v3", "{}").mkString("\t"),
         Seq(2, "update", "e", 1456295586334L, 1456295586339L, "s2graph_label_test_v3", "{}").mkString("\t"),

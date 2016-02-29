@@ -770,7 +770,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
               s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
               "=" * 50, "\n").mkString("\n")
 
-            logger.debug(log)
+            logger.error(log)
             //            debug(ret, "acquireLock", edge.toSnapshotEdge)
           } else {
             throw new PartialFailureException(edge, 0, "hbase fail.")
