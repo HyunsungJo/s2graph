@@ -391,6 +391,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       }
       def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {
         if (tryNum >= MaxRetryNum) {
+          logger.error(s">> max try num error")
           edges.foreach { edge =>
             logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
             ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
@@ -405,9 +406,11 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           future recoverWith {
             case FetchTimeoutException(retryEdge) =>
               logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
+              logger.error(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
               retry(tryNum + 1)(edges, statusCode)(fn)
 
             case PartialFailureException(retryEdge, failedStatusCode, faileReason) =>
+              logger.error(s">> PartialFailureException : $retryEdge, $failedStatusCode, $faileReason")
               val status = failedStatusCode match {
                 case 0 => "AcquireLock failed."
                 case 1 => "Mutation failed."
@@ -425,6 +428,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           }
         }
       }
+      logger.error(s">>>>> retry start : max retry number = $MaxRetryNum, backoff = $MaxBackOff")
       retry(1)(edges, 0)(commit)
     }
   }
@@ -800,7 +804,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         if (ret) {
           debug(ret, "releaseLock", edge.toSnapshotEdge)
         } else {
-          val msg = Seq("\nFATAL ERROR\n",
+          val msg = Seq("\nRelease FATAL ERROR\n",
             "=" * 50,
             oldBytes.toList,
             lockEdgePut,
@@ -810,6 +814,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             "=" * 50,
             "\n"
           )
+
           logger.error(msg.mkString("\n"))
           //          error(ret, "releaseLock", edge.toSnapshotEdge)
           throw new PartialFailureException(edge, 3, "hbase fail.")

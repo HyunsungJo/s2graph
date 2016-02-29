@@ -82,7 +82,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 //            logger.error(s">> Vertex Delete")
             jedis.zrem(kv.row, kv.qualifier ++ kv.value) == 1
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
-//            logger.error(s">> Edge Delete")
+            logger.error(s">> Edge Delete")
             val r = jedis.zrem(kv.row, kv.value) == 1
             logger.info(s">> [Delete res]: $r")
             r
@@ -435,8 +435,17 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 
               result != null && result.toString.equals("[OK]")
 
+//              jedis.watch(expected.row)
+//              val curVal = jedis.get(requestKeyValue.row)
+//              val data = Seq("\n","="*150,
+//                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
+//                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
+//                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
+//                "-"*150,
+//                s">> KEY : ${c(requestKeyValue.row)}",
+//                "="*150
+//              )
 //              logger.error(data.mkString("\n"))
-//              jedis.watch(requestKeyValue.row)
 //              jedis.getClient.multi()
 //
 //              val transaction = new JedisTransaction(jedis.getClient)
@@ -465,12 +474,25 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 //              } catch {
 //                case e: Throwable =>
 //                  logger.error(s">> error thrown", e)
-//                  jedis.unwatch()
 //                  transaction.discard()
 //                  false
 //              }
             case None =>
-              jedis.set(requestKeyValue.row, requestKeyValue.value) == "OK"
+              jedis.watch(requestKeyValue.row)
+              val transaction = jedis.multi()
+              val result =
+                try {
+                  transaction.set(requestKeyValue.row, requestKeyValue.value)
+                  transaction.exec()
+                } catch {
+                  case e: Throwable =>
+                    logger.error(s">> error thrown", e)
+                    transaction.discard()
+                    false
+                }
+              logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+
+              result != null && result.toString.equals("[OK]")
           }
         } catch {
           case ex: Throwable =>
