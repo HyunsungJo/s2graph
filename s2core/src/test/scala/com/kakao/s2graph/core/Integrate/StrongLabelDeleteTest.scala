@@ -225,10 +225,10 @@ class StrongLabelDeleteTest extends IntegrateCommon {
           Seq(currentTs, op, "e", src, src + tgt, labelName, "{}").mkString("\t")
         }
 
-      println "In Order:"
+      println("In Order:")
       allRequests.foreach(println(_))
       val shuffled = Random.shuffle(allRequests)
-      println "Shuffled:"
+      println("Shuffled:")
       shuffled.foreach(println _)
 
       val futures = shuffled.grouped(batchSize).map { bulkRequests =>
@@ -260,15 +260,19 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val lastOps = Array.fill(maxTgtId)("none")
       val currentTs = startTs
       val allRequests = IndexedSeq(
-        Seq(1, "update", "e", 1456295586334L, 1456295586340L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(2, "update", "e", 1456295586334L, 1456295586339L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(3, "delete", "e", 1456295586334L, 1456295586339L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(4, "update", "e", 1456295586334L, 1456295586334L, "s2graph_label_test_v3", "{}").mkString("\t")
+        Seq(3, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(5, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(4, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(2, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
       )
       allRequests.foreach(println _)
-      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
+//      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
+//        insertEdgesAsync(bulkRequests: _*)
+//      }
+      val futures = allRequests.grouped(batchSize).map { bulkRequests =>
         insertEdgesAsync(bulkRequests: _*)
       }
+
 
       Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
