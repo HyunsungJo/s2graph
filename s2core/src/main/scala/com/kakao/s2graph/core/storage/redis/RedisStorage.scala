@@ -79,7 +79,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               jedis.zadd(kv.row, RedisZsetScore, kv.value) == 1
             }
           case SKeyValue.Delete if kv.qualifier.length > 0 =>
-//            logger.error(s">> Vertex Delete")
+            //            logger.error(s">> Vertex Delete")
             jedis.zrem(kv.row, kv.qualifier ++ kv.value) == 1
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
             logger.error(s">> Edge Delete")
@@ -406,20 +406,20 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               val curVal = jedis.get(requestKeyValue.row)
               val eq = Bytes.compareTo(curVal, expected.value) == 0
 
-              val data = Seq("\n","="*150,
+              val data = Seq("\n", "=" * 150,
                 s">> EQ? : $eq",
                 s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
                 s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
                 s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-                "-"*150,
+                "-" * 150,
                 s">> KEY : ${c(requestKeyValue.row)}",
-                "="*150
+                "=" * 150
               )
               logger.error(data.mkString("\n"))
 
 
               val result =
-                if ( Bytes.compareTo(expected.value, curVal) == 0 )  {
+                if (Bytes.compareTo(expected.value, curVal) == 0) {
                   val transaction = jedis.multi()
                   try {
                     transaction.set(requestKeyValue.row, requestKeyValue.value)
@@ -435,48 +435,48 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 
               result != null && result.toString.equals("[OK]")
 
-//              jedis.watch(expected.row)
-//              val curVal = jedis.get(requestKeyValue.row)
-//              val data = Seq("\n","="*150,
-//                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
-//                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
-//                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-//                "-"*150,
-//                s">> KEY : ${c(requestKeyValue.row)}",
-//                "="*150
-//              )
-//              logger.error(data.mkString("\n"))
-//              jedis.getClient.multi()
-//
-//              val transaction = new JedisTransaction(jedis.getClient)
-//
-//              try {
-//                val script: String =
-//                  """local key = KEYS[1]
-//                    |local oldData = ARGV[1]
-//                    |local value = ARGV[2]
-//                    |local data = redis.call('get', key)
-//                    |if data == oldData then
-//                    |  return redis.call('set', key, value)
-//                    |end
-//                    |return '0'
-//                  """.stripMargin
-//
-//                val keys = List[Array[Byte]](requestKeyValue.row)
-//                val argv = List[Array[Byte]](expected.value, requestKeyValue.value)
-//                transaction.evalWithString(script.getBytes, keys, argv)
-//                val result = transaction.exec()
-//                logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
-//                if ( result != null && result.equals("[0]")) {
-//
-//                }
-//                result != null && result.toString.equals("[OK]")
-//              } catch {
-//                case e: Throwable =>
-//                  logger.error(s">> error thrown", e)
-//                  transaction.discard()
-//                  false
-//              }
+            //              jedis.watch(expected.row)
+            //              val curVal = jedis.get(requestKeyValue.row)
+            //              val data = Seq("\n","="*150,
+            //                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
+            //                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
+            //                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
+            //                "-"*150,
+            //                s">> KEY : ${c(requestKeyValue.row)}",
+            //                "="*150
+            //              )
+            //              logger.error(data.mkString("\n"))
+            //              jedis.getClient.multi()
+            //
+            //              val transaction = new JedisTransaction(jedis.getClient)
+            //
+            //              try {
+            //                val script: String =
+            //                  """local key = KEYS[1]
+            //                    |local oldData = ARGV[1]
+            //                    |local value = ARGV[2]
+            //                    |local data = redis.call('get', key)
+            //                    |if data == oldData then
+            //                    |  return redis.call('set', key, value)
+            //                    |end
+            //                    |return '0'
+            //                  """.stripMargin
+            //
+            //                val keys = List[Array[Byte]](requestKeyValue.row)
+            //                val argv = List[Array[Byte]](expected.value, requestKeyValue.value)
+            //                transaction.evalWithString(script.getBytes, keys, argv)
+            //                val result = transaction.exec()
+            //                logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+            //                if ( result != null && result.equals("[0]")) {
+            //
+            //                }
+            //                result != null && result.toString.equals("[OK]")
+            //              } catch {
+            //                case e: Throwable =>
+            //                  logger.error(s">> error thrown", e)
+            //                  transaction.discard()
+            //                  false
+            //              }
             case None =>
               jedis.watch(requestKeyValue.row)
               val transaction = jedis.multi()
@@ -520,34 +520,37 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
   }
 
-  def writeWithTx(k: String, v: String, exp: String): Boolean = {
-    client.doBlockWithKey(k) { jedis =>
-      jedis.watch(k)
-      Thread.sleep(5000)
-      val fetched = jedis.get(k)
-      logger.error(s"fetched: $fetched")
-      Thread.sleep(10000)
-      val result = if (fetched.contentEquals(exp)) {
-        val tx = jedis.multi()
-        try {
-          tx.set(k, v)
-          tx.exec()
-        } catch {
-          case e: Throwable =>
-            logger.error(s">> error thrown", e)
-            tx.discard()
-            false
-        }
-      } else "[FAIL]"
-      result != null && result.toString.equals("[OK]")
+  def writeWithTx(k: String, v: String, exp: String): Future[Boolean] = {
+    Future[Boolean] {
+      client.doBlockWithKey(k) { jedis =>
+        jedis.watch(k)
+        //      Thread.sleep(5000)
+        val fetched = jedis.get(k)
+        logger.error(s"fetched: $fetched")
+//        Thread.sleep(10000)
+        val result = if (fetched.contentEquals(exp)) {
+          val tx = jedis.multi()
+          try {
+            tx.set(k, v)
+            val r = tx.exec()
+            logger.error(s">> result : $r")
+            r
+          } catch {
+            case e: Throwable =>
+              logger.error(s">> error thrown", e)
+              tx.discard()
+              false
+          }
+        } else "[FAIL]"
+        result != null && result.toString.equals("[OK]")
 
-    } match {
-      case Success(b) => b
-      case Failure(e) =>
-        logger.error(s"write failed: key - $k, val - $v, exp - $exp")
-        false
+      } match {
+        case Success(b) => b
+        case Failure(e) =>
+          logger.error(s"write failed: key - $k, val - $v, exp - $exp")
+          false
+      }
     }
-
   }
 
 

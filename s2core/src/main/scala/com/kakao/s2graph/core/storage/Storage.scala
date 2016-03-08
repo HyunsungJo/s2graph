@@ -152,7 +152,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
 
   def simpleWrite(k: String, v: String): Boolean
-  def writeWithTx(k: String, v: String, exp: String): Boolean
+  def writeWithTx(k: String, v: String, exp: String): Future[Boolean]
 
   /**
     * this method need to be called when client shutdown. this is responsible to cleanUp the resources
