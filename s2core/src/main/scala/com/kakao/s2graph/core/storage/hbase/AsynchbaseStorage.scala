@@ -489,5 +489,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
   }
 
+  override def simpleWrite(k: String, v: String): Boolean = ???
 
+  override def writeWithTx(k: String, v: String, exp: String): Boolean = ???
 }

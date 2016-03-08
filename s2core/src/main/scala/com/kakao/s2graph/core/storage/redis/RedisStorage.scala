@@ -508,6 +508,49 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
   }
 
+  def simpleWrite(k: String, v: String): Boolean = {
+    client.doBlockWithKey(k) { jedis =>
+      val result = jedis.set(k, v)
+      result != null && result.toString.equals("[OK]")
+    } match {
+      case Success(b) => b
+      case Failure(e) =>
+        logger.error("write failed")
+        false
+    }
+  }
+
+  def writeWithTx(k: String, v: String, exp: String): Boolean = {
+    client.doBlockWithKey(k) { jedis =>
+      jedis.watch(k)
+      Thread.sleep(5000)
+      val fetched = jedis.get(k)
+      logger.error(s"fetched: $fetched")
+      Thread.sleep(10000)
+      val result = if (fetched.contentEquals(exp)) {
+        val tx = jedis.multi()
+        try {
+          tx.set(k, v)
+          tx.exec()
+        } catch {
+          case e: Throwable =>
+            logger.error(s">> error thrown", e)
+            tx.discard()
+            false
+        }
+      } else "[FAIL]"
+      result != null && result.toString.equals("[OK]")
+
+    } match {
+      case Success(b) => b
+      case Failure(e) =>
+        logger.error(s"write failed: key - $k, val - $v, exp - $exp")
+        false
+    }
+
+  }
+
+
   /**
    * this method need to be called when client shutdown. this is responsible to cleanUp the resources
    * such as client into storage.

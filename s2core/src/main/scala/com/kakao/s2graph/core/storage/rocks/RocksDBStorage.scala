@@ -302,4 +302,7 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
     Future.successful(Seq.empty)
   }
 
+  override def simpleWrite(k: String, v: String): Boolean = ???
+
+  override def writeWithTx(k: String, v: String, exp: String): Boolean = ???
 }

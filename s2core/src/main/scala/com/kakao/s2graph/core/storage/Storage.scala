@@ -28,7 +28,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   val expireAfterWrite = config.getInt("future.cache.expire.after.write")
   val expireAfterAccess = config.getInt("future.cache.expire.after.access")
 
-
   /**
     * create serializer that knows how to convert given snapshotEdge into kvs: Seq[SKeyValue]
     * so we can store this kvs.
@@ -151,6 +150,9 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     * @return
     */
   def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
+
+  def simpleWrite(k: String, v: String): Boolean
+  def writeWithTx(k: String, v: String, exp: String): Boolean
 
   /**
     * this method need to be called when client shutdown. this is responsible to cleanUp the resources

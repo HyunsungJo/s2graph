@@ -1,13 +1,14 @@
 package com.kakao.s2graph.core.storage.redis
 
-import java.util.concurrent.TimeUnit
-
 import com.kakao.s2graph.core.Integrate.IntegrateCommon
-import com.kakao.s2graph.core.{Edge, Management, V3Test}
+import com.kakao.s2graph.core.rest.RequestParser
+import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.{Graph, Management, V3Test}
+import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.scalatest.BeforeAndAfterEach
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.collection.JavaConversions._
+import scala.concurrent.ExecutionContext
 
 /**
  * Created by jojo on 3/7/16.
@@ -15,27 +16,46 @@ import scala.concurrent.duration.Duration
 class RedisTxTest extends IntegrateCommon with BeforeAndAfterEach {
   import TestUtil._
 
-  case class PartialFailureException(edge: Edge, statusCode: Byte, failReason: String) extends Exception
+  override def beforeAll = {
+    config = ConfigFactory.load()
+      .withValue("storage.engine", ConfigValueFactory.fromAnyRef("redis")) // for redis test
+      .withValue("storage.redis.instances", ConfigValueFactory.fromIterable(List[String]("localhost"))) // for redis test
+    graph = new Graph(config)(ExecutionContext.Implicits.global)
+    parser = new RequestParser(graph.config)
+    management = new Management(graph)
+  }
+
 
   test("Redis tx", V3Test) {
 
-    val expEdge = Management.toEdge(1L, "update", "e", "1", "1", testLabelNameV3, "{}")
-    val expSnapshot = expEdge.toSnapshotEdge
-    val expectedOpt = RedisSnapshotEdgeSerializable(expSnapshot).toKeyValues.headOption
-
-    val reqEdge1 = Management.toEdge(2L, "update", "e", "2", "2", testLabelNameV3, "{")
-
-    val reqEdge2 = Management.toEdge(3L, "update", "e", "3", "3", testLabelNameV3, "{")
-
-    val writes = Set(reqEdge1, reqEdge2).map { rqe =>
-      val reqSnapshot = rqe.toSnapshotEdge
-      val rq = RedisSnapshotEdgeSerializable(reqSnapshot).toKeyValues.head
-
-      val x = graph.storage.writeLock(rq, expectedOpt)
-      Await.result(x, Duration(20, TimeUnit.SECONDS))
-    }
-    writes.map(println(_))
-    writes.filter(x => x).size should be(1)
-
+    graph.storage.simpleWrite("key", "original")
+    val s = collection.mutable.Set[String]()
+    1 to 20 map { i => s add i.toString}
+    val results = s.map{ i => graph.storage.writeWithTx("key", i, "original")}
+    val size = results.filter(b => b).size
+    logger.error(s"size: $size")
+    size should be(1)
   }
+
+//  ignore("Redis tx", V3Test) {
+//
+//    val expEdge = Management.toEdge(1L, "update", "1", "1", testLabelNameV3, "out", "{}")
+//    val expSnapshot = expEdge.toSnapshotEdge
+//    val expectedOpt = RedisSnapshotEdgeSerializable(expSnapshot).toKeyValues.headOption
+//
+//    val reqEdge1 = Management.toEdge(2L, "update", "2", "2", testLabelNameV3, "out", "{}")
+//
+//    val reqEdge2 = Management.toEdge(3L, "update", "3", "3", testLabelNameV3, "out", "{}")
+//
+//    val writes = Set(reqEdge1, reqEdge2).map { rqe =>
+//      val reqSnapshot = rqe.toSnapshotEdge
+//      val rq = RedisSnapshotEdgeSerializable(reqSnapshot).toKeyValues.head
+//
+//      val x = graph.storage.writeLock(rq, expectedOpt)
+//      Await.result(x, Duration(20, TimeUnit.SECONDS))
+//    }
+//    writes.map(println(_))
+//    writes.filter(x => x).size should be(1)
+//
+//  }
 }
