@@ -769,6 +769,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
               s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
               s"[RequestEdge]: ${edge.toLogString}",
               s"[LockEdge]: ${lockEdge.toLogString()}",
+              s"[LockEdgeKey]: ${GraphUtil.bytesToHexString(lockEdgePut.row)}",
+              s"[LockEdgeVal]: ${GraphUtil.bytesToHexString(lockEdgePut.value)}",
               s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
               s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
               "=" * 50, "\n").mkString("\n")
@@ -783,6 +785,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
               s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
               s"[RequestEdge]: ${edge.toLogString}",
               s"[LockEdge]: ${lockEdge.toLogString()}",
+              s"[LockEdgeKey]: ${GraphUtil.bytesToHexString(lockEdgePut.row)}",
+              s"[LockEdgeVal]: ${GraphUtil.bytesToHexString(lockEdgePut.value)}",
               s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
               s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
               "=" * 50, "\n").mkString("\n")
@@ -826,6 +830,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             s"[RequestEdge]: ${edge.toLogString}",
             s"[LockEdge]: ${lockEdge.toLogString()}",
             s"[ReleaseEdge]: ${releaseLockEdge.toLogString()}",
+            s"[ReleaseEdgeKey]: ${GraphUtil.bytesToHexString(releaseLockEdgePut.row)}",
+            s"[ReleaseEdgeVal]: ${GraphUtil.bytesToHexString(releaseLockEdgePut.value)}",
             s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
             s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
             "=" * 50, "\n").mkString("\n")
@@ -839,6 +845,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             s"[RequestEdge]: ${edge.toLogString}",
             s"[LockEdge]: ${lockEdge.toLogString()}",
             s"[ReleaseEdge]: ${releaseLockEdge.toLogString()}",
+            s"[ReleaseEdgeKey]: ${GraphUtil.bytesToHexString(releaseLockEdgePut.row)}",
+            s"[ReleaseEdgeVal]: ${GraphUtil.bytesToHexString(releaseLockEdgePut.value)}",
             s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
 //            "=" * 50,
 //            oldBytes.toList,
