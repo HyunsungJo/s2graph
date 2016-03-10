@@ -396,11 +396,11 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   override def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
     Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(requestKeyValue.row)) { jedis =>
+        val c = GraphUtil.bytesToHexString _
+        val b = com.kakao.s2graph.core.storage.StorageDeserializable.bytesToKeyValuesWithTs _
         try {
           expectedOpt match {
             case Some(expected) =>
-              val c = GraphUtil.bytesToHexString _
-              val b = com.kakao.s2graph.core.storage.StorageDeserializable.bytesToKeyValuesWithTs _
 
               jedis.watch(requestKeyValue.row)
               val curVal = jedis.get(requestKeyValue.row)
@@ -413,6 +413,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                 s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
                 "-" * 150,
                 s">> KEY : ${c(requestKeyValue.row)}",
+                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
                 "=" * 150
               )
               logger.error(data.mkString("\n"))
@@ -431,67 +432,43 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                       false
                   }
                 } else "[FAIL]"
-              logger.error(s">> cas1 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+//              logger.error(s">> cas1 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
 
               result != null && result.toString.equals("[OK]")
 
-            //              jedis.watch(expected.row)
-            //              val curVal = jedis.get(requestKeyValue.row)
-            //              val data = Seq("\n","="*150,
-            //                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
-            //                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
-            //                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-            //                "-"*150,
-            //                s">> KEY : ${c(requestKeyValue.row)}",
-            //                "="*150
-            //              )
-            //              logger.error(data.mkString("\n"))
-            //              jedis.getClient.multi()
-            //
-            //              val transaction = new JedisTransaction(jedis.getClient)
-            //
-            //              try {
-            //                val script: String =
-            //                  """local key = KEYS[1]
-            //                    |local oldData = ARGV[1]
-            //                    |local value = ARGV[2]
-            //                    |local data = redis.call('get', key)
-            //                    |if data == oldData then
-            //                    |  return redis.call('set', key, value)
-            //                    |end
-            //                    |return '0'
-            //                  """.stripMargin
-            //
-            //                val keys = List[Array[Byte]](requestKeyValue.row)
-            //                val argv = List[Array[Byte]](expected.value, requestKeyValue.value)
-            //                transaction.evalWithString(script.getBytes, keys, argv)
-            //                val result = transaction.exec()
-            //                logger.error(s">> cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
-            //                if ( result != null && result.equals("[0]")) {
-            //
-            //                }
-            //                result != null && result.toString.equals("[OK]")
-            //              } catch {
-            //                case e: Throwable =>
-            //                  logger.error(s">> error thrown", e)
-            //                  transaction.discard()
-            //                  false
-            //              }
             case None =>
-              jedis.watch(requestKeyValue.row)
-              val transaction = jedis.multi()
-              val result =
-                try {
-                  transaction.set(requestKeyValue.row, requestKeyValue.value)
-                  transaction.exec()
-                } catch {
-                  case e: Throwable =>
-                    logger.error(s">> error thrown", e)
-                    transaction.discard()
-                    false
-                }
-              logger.error(s">> cas2 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
 
+
+              jedis.watch(requestKeyValue.row)
+              val curVal = jedis.get(requestKeyValue.row)
+              val sCurVal = if ( curVal == null ) "[NULL" else curVal.toString
+              val data = Seq("\n", "=" * 150,
+                s">> [Initial Edge Write]",
+                s">> RET : ${sCurVal}}",
+                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
+                "-" * 150,
+                s">> KEY : ${c(requestKeyValue.row)}",
+                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
+                "=" * 150
+              )
+              logger.error(data.mkString("\n"))
+
+              val result =
+                if ( curVal == null ) {
+                  val transaction = jedis.multi()
+                    try {
+                      transaction.set(requestKeyValue.row, requestKeyValue.value)
+                      transaction.exec()
+                    } catch {
+                      case e: Throwable =>
+                        logger.error(s">> error thrown", e)
+                        transaction.discard()
+                        false
+                    }
+
+                } else "[FAIL]"
+
+              logger.error(s">> [Initial write] : $result - [${result != null && result.toString.equals("[OK]")}], ${b(requestKeyValue.value, 1, "v4")._1.toMap}")
               result != null && result.toString.equals("[OK]")
           }
         } catch {

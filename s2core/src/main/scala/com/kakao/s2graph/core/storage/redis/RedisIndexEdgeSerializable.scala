@@ -4,7 +4,6 @@ import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.{SKeyValue, StorageSerializable}
 import com.kakao.s2graph.core.types.VertexId
 import com.kakao.s2graph.core.types.v2.InnerVal
-import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -50,7 +49,7 @@ case class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends StorageSeria
 
     val c = GraphUtil.bytesToHexString _
     val value = qualifierLen ++ qualifier ++ propsKv
-    logger.error(s"~~VALUE - row: ${c(row)}, val: ${c(value)}, qualLen: ${c(qualifierLen)}, qual: ${c(qualifier)}, props: ${c(propsKv)}")
+//    logger.error(s"~~VALUE - row: ${c(row)}, val: ${c(value)}, qualLen: ${c(qualifierLen)}, qual: ${c(qualifier)}, props: ${c(propsKv)}")
     val emptyArray = Array.empty[Byte]
     val kv = SKeyValue(emptyArray, row, emptyArray, emptyArray, value, indexEdge.version)
 

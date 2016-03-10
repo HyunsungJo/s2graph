@@ -73,8 +73,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     } yield {
         val src = System.currentTimeMillis()
 
-        val (ret, last) = testInner(i, src)
-//        val (ret, last) = testInnerFail(i, src)
+//        val (ret, last) = testInner(i, src)
+        val (ret, last) = testInnerFail(i, src)
         ret should be(true)
         ret
       }
@@ -201,9 +201,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     val labelName = testLabelNameV3
     val maxTgtId = 10
-    val batchSize = 2
+    val batchSize = 5
     val testNum = 2
-    val numOfBatch = 2
+    val numOfBatch = 5
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelNameV3
@@ -249,8 +249,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 //      println(s">> resultDegree : $resultDegree, expectedDegree : $expectedDegree, resultSize : $resultSize")
 
       val ret = resultDegree == expectedDegree && resultSize == resultDegree
-      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
-      else println(s"[Contention Success]: $resultDegree, $expectedDegree")
+      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree\n")
+      else println(s"[Contention Success]: $resultDegree, $expectedDegree\n")
 
       (ret, currentTs)
     }
@@ -260,10 +260,22 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val lastOps = Array.fill(maxTgtId)("none")
       val currentTs = startTs
       val allRequests = IndexedSeq(
-        Seq(3, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(5, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(4, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(2, "update", "e", 1457324321112L, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
+        Seq(startTs, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+1, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+2, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+3, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+4, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+5, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+6, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+7, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+8, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+9, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+10, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+11, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+12, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+13, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+14, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
       )
       allRequests.foreach(println _)
 //      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
@@ -276,7 +288,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
       Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
-      val expectedDegree = lastOps.count(op => op != "delete" && op != "none")
+      val expectedDegree = 1
       val queryJson = query(id = src)
       val result = getEdgesSync(queryJson)
       val resultSize = (result \ "size").as[Long]

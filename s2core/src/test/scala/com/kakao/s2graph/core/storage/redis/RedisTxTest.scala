@@ -27,6 +27,10 @@ class RedisTxTest extends IntegrateCommon with BeforeAndAfterEach {
     management = new Management(graph)
   }
 
+  def testInner = {
+
+  }
+
   test("Redis tx", V3Test) {
 
     graph.storage.simpleWrite("key", "original")
