@@ -2,7 +2,7 @@ package com.kakao.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
 
-import com.kakao.s2graph.core.{GraphUtil, V3Test}
+import com.kakao.s2graph.core.{GraphUtil, RedisTest}
 import org.apache.hadoop.hbase.util.Bytes
 import play.api.libs.json.{JsValue, Json}
 
@@ -15,7 +15,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  ignore("Strong consistency select", V3Test) {
+  test("Strong consistency select", RedisTest) {
     insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
@@ -24,7 +24,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
-  ignore("Strong consistency deleteAll", V3Test) {
+  test("Strong consistency deleteAll", RedisTest) {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
 
@@ -67,14 +67,14 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   }
 
 
-  test("update delete", V3Test) {
+  test("update delete", RedisTest) {
     val ret = for {
       i <- 0 until testNum
     } yield {
         val src = System.currentTimeMillis()
 
-//        val (ret, last) = testInner(i, src)
-        val (ret, last) = testInnerFail(i, src)
+        val (ret, last) = testInner(i, src)
+//        val (ret, last) = testInnerFail(i, src)
         ret should be(true)
         ret
       }
@@ -82,7 +82,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret.forall(identity)
   }
 
-  ignore("update delete 2", V3Test) {
+  test("update delete 2", RedisTest) {
     val src = System.currentTimeMillis()
     var ts = 0L
 
@@ -90,9 +90,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       i <- 0 until testNum
     } yield {
         val (ret, lastTs) = testInner(ts, src)
+//        val (ret, lastTs) = testInnerFail(ts, src)
         val deletedAt = lastTs + 1
         val deletedAt2 = lastTs + 2
-        ts = deletedAt2 + 1 // nex start ts
 
         ret should be(true)
 
@@ -103,7 +103,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         val deleteRet2 = deleteAllSync(deleteAllRequest2)
 
         val result = getEdgesSync(query(id = src))
-//        println(result)
+        println(deleteAllRequest.toString())
+        println(deleteAllRequest2.toString())
+        println(result)
 
         val resultEdges = (result \ "results").as[Seq[JsValue]]
         resultEdges.isEmpty should be(true)
@@ -121,7 +123,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
     */
-  ignore("large degrees", V3Test) {
+  test("large degrees", RedisTest) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -161,7 +163,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret should be(true)
   }
 
-  ignore("deleteAll", V3Test) {
+  test("deleteAll", RedisTest) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -201,9 +203,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     val labelName = testLabelNameV3
     val maxTgtId = 10
-    val batchSize = 5
-    val testNum = 1
-    val numOfBatch = 5
+    val batchSize = 10
+    val testNum = 3
+    val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelNameV3
@@ -262,20 +264,20 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val allRequests = IndexedSeq(
         Seq(startTs, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
         Seq(startTs+1, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+2, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+3, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+4, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+5, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+6, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+7, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+8, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+9, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+10, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+11, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+12, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+13, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+14, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
+        Seq(startTs+2, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+3, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
+//        Seq(startTs+4, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+5, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+6, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+7, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+8, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+9, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+10, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+11, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+12, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+13, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+14, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+//        Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
       )
       allRequests.foreach(println _)
 //      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
@@ -303,7 +305,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
       else println(s"[Contention Success]: $resultDegree, $expectedDegree")
 
-      (ret, currentTs)
+      (ret, startTs+3)
 
     }
 

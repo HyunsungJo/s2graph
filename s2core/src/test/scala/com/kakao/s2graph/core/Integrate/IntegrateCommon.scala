@@ -238,6 +238,26 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "indices": [
     ],
     "props": [
+        {
+          "name": "time",
+          "dataType": "long",
+          "defaultValue": 0
+        },
+        {
+          "name": "weight",
+          "dataType": "long",
+          "defaultValue": 0
+        },
+        {
+          "name": "is_hidden",
+          "dataType": "boolean",
+          "defaultValue": false
+        },
+        {
+          "name": "is_blocked",
+          "dataType": "boolean",
+          "defaultValue": false
+        }
     ],
     "consistencyLevel": "strong",
     "schemaVersion": "v4",

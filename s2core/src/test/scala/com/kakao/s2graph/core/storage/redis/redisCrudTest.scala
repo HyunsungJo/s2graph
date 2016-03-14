@@ -3,7 +3,7 @@ package com.kakao.s2graph.core.storage.redis
 import com.kakao.s2graph.core.Integrate.IntegrateCommon
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.rest.RequestParser
-import com.kakao.s2graph.core.{Graph, Management, RedisTest}
+import com.kakao.s2graph.core.{Graph, Management, V3Test}
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json.{JsValue, Json}
@@ -83,7 +83,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
 
-  test("test insert/check/get edges", RedisTest) {
+  test("test insert/check/get edges", V3Test) {
     insertEdgesSync(
       toEdge(1, insert, e, 1, 1000, testLabelNameV3),
       toEdge(1, insert, e, 1, 1100, testLabelNameV3),
@@ -134,7 +134,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \ "size").toString should be("3") // edge 1 -> 1000, 1100, 1110 should be present
   }
 
-  test("get vertex", RedisTest) {
+  test("get vertex", V3Test) {
     val ids = Array(1, 2)
     val q = vertexQueryJson(testServiceName, testColumnName, ids)
     println("vertex get query: " + q.toString())
@@ -144,7 +144,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
     rs.as[Array[JsValue]].size should be (2)
   }
 
-  test("insert vertex", RedisTest) {
+  test("insert vertex", V3Test) {
     val ids = (3 until 6)
     val data = vertexInsertsPayload(testServiceName, testColumnName, ids)
     val payload = Json.parse(Json.toJson(data).toString())
@@ -162,25 +162,25 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
     rs.as[Array[JsValue]].size should be (3)
   }
 
-  test("test increment", RedisTest) {
+  test("test increment", V3Test) {
     def queryTo(id: Int, to:Int, offset: Int = 0, limit: Int = 10) = Json.parse(
       s"""
-         |{
-         |	"srcVertices": [{
-         |		"serviceName": "$testServiceName",
-                                                |		"columnName": "$testColumnName",
-                                                                                     |		"id": $id
-          |	}],
-          |	"steps": [
-          |		[{
-          |			"label": "$testLabelNameV3",
-                                             |			"direction": "out",
-                                             |			"offset": $offset,
-                                                                       |			"limit": $limit,
-                                                                                               |     "where": "_to=$to"
-                                                                                                                        |		}]
-                                                                                                                        |	]
-                                                                                                                        |}
+      |{
+      |	"srcVertices": [{
+      |		"serviceName": "$testServiceName",
+      |		"columnName": "$testColumnName",
+      |		"id": $id
+      |	}],
+      |	"steps": [
+      |		[{
+      |			"label": "$testLabelNameV3",
+      |			"direction": "out",
+      |			"offset": $offset,
+      |			"limit": $limit,
+      |     "where": "_to=$to"
+      |		}]
+      |	]
+      |}
       """.stripMargin
     )
 
@@ -198,7 +198,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \ "props" \ "weight" ).toString should be (s"$incrementVal")  // edge 1 -> 1000 should be present
   }
 
-  test("deleteAll", RedisTest) {
+  test("deleteAll", V3Test) {
     val deletedAt = 100
     var result = getEdgesSync(querySingle(1, "out", 0, 10))
 
