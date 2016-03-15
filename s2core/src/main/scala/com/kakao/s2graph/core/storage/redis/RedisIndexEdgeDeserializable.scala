@@ -39,6 +39,7 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
   private def parseQualifier(kv: SKeyValue, totalQualifierLen: Int, version: String): QualifierRaw = {
     kv.operation match {
       case SKeyValue.Increment =>
+        logger.error(s"TSTSTS!!!")
         (Array.empty[(Byte, InnerValLike)], VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version)), GraphUtil.toOp("increment").get, true, 0, 0)
       case _ =>
         var qualifierLen = 0
@@ -70,6 +71,7 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
             }
           pos += tgtVertexIdLen
           qualifierLen += tgtVertexIdLen
+          logger.error(s"TSTSTS!!! ${ts}")
           (props, tgtVertexId, tgtVertexIdLen, ts)
         }
         val op = kv.value(totalQualifierLen)

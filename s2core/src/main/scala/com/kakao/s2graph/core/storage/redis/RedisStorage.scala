@@ -70,6 +70,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     logger.error(s">>>> writeToStorage: ts - ${kv.timestamp}")
     val future = Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
+        logger.error(s"writeToStorage - ts: ${kv.timestamp}\nsummary: ${kv.toLogString}\nop: ${kv.operation}\nkey: ${GraphUtil.bytesToHexString(kv.row)}\nvalue: ${GraphUtil.bytesToHexString(kv.value)}")
         kv.operation match {
           case SKeyValue.Put if kv.qualifier.length > 0 =>
             jedis.zadd(kv.row, RedisZsetScore, kv.qualifier ++ kv.value) == 1
