@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.storage.redis
 
 import com.kakao.s2graph.core.mysqls.LabelIndex
+import com.kakao.s2graph.core.types.v2.InnerVal
 import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, GraphExceptions, SnapshotEdge}
 import com.kakao.s2graph.core.storage.{SKeyValue, StorageSerializable}
@@ -42,15 +43,17 @@ case class RedisSnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Sto
       labelIndexSeqWithIsInvertedBytes
     )
 
+    val timestamp = InnerVal(BigDecimal(snapshotEdge.version)).bytes
+
     logger.info(s">> snapshot edge : row key completed ")
 
     val value = snapshotEdge.pendingEdgeOpt match {
-      case None => valueBytes()
+      case None => Bytes.add(timestamp, valueBytes())
       case Some(pendingEdge) =>
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-        Bytes.add(Bytes.add(valueBytes(), opBytes), Bytes.add(propsBytes, lockBytes))
+        Bytes.add(Bytes.add(timestamp, valueBytes(), opBytes), Bytes.add(propsBytes, lockBytes))
     }
 
     val kv = SKeyValue(Array.empty[Byte], row, Array.empty[Byte], Array.empty[Byte], value, snapshotEdge.version, operation = SKeyValue.SnapshotPut)

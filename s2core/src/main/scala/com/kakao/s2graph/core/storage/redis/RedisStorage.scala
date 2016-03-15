@@ -67,6 +67,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return ack message from storage.
    */
   override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
+    logger.error(s">>>> writeToStorage: ts - ${kv.timestamp}")
     val future = Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
         kv.operation match {
@@ -205,7 +206,14 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               Seq.empty[SKeyValue]
             }
             else {
-              val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], _result, 0L, operation = SKeyValue.SnapshotPut)
+              val (tsInnerVal, numOfBytesUsed) = InnerVal.fromBytes(_result, 0, 0, GraphType.VERSION4, false)
+
+              val ts = tsInnerVal.value match {
+                case n: BigDecimal => n.bigDecimal.longValue()
+                case _ => tsInnerVal.toString().toLong
+              }
+
+              val snapshot = SKeyValue(Array.empty[Byte], req.key, Array.empty[Byte], Array.empty[Byte], _result, ts, operation = SKeyValue.SnapshotPut)
               Seq[SKeyValue](snapshot)
             }
         }
@@ -406,17 +414,17 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               val curVal = jedis.get(requestKeyValue.row)
               val eq = Bytes.compareTo(curVal, expected.value) == 0
 
-              val data = Seq("\n", "=" * 150,
-                s">> EQ? : $eq",
-                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
-                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
-                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-                "-" * 150,
-                s">> KEY : ${c(requestKeyValue.row)}",
-                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
-                "=" * 150
-              )
-              logger.error(data.mkString("\n"))
+//              val data = Seq("\n", "=" * 150,
+//                s">> EQ? : $eq",
+//                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
+//                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
+//                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
+//                "-" * 150,
+//                s">> KEY : ${c(requestKeyValue.row)}",
+//                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
+//                "=" * 150
+//              )
+//              logger.error(data.mkString("\n"))
 
 
               val result =
@@ -433,25 +441,27 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                   }
                 } else "[FAIL]"
 //              logger.error(s">> cas1 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
+//              logger.error(s"\n[[ cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
 
               result != null && result.toString.equals("[OK]")
 
             case None =>
+              logger.error(s"\n[[ Initial start")
 
 
               jedis.watch(requestKeyValue.row)
               val curVal = jedis.get(requestKeyValue.row)
               val sCurVal = if ( curVal == null ) "[NULL" else curVal.toString
-              val data = Seq("\n", "=" * 150,
-                s">> [Initial Edge Write]",
-                s">> RET : ${sCurVal}}",
-                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-                "-" * 150,
-                s">> KEY : ${c(requestKeyValue.row)}",
-                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
-                "=" * 150
-              )
-              logger.error(data.mkString("\n"))
+//              val data = Seq("\n", "=" * 150,
+//                s">> [Initial Edge Write]",
+//                s">> In Redis : ${sCurVal}}",
+//                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
+//                "-" * 150,
+//                s">> KEY : ${c(requestKeyValue.row)}",
+//                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
+//                "=" * 150
+//              )
+//              logger.error(data.mkString("\n"))
 
               val result =
                 if ( curVal == null ) {
@@ -462,13 +472,15 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                     } catch {
                       case e: Throwable =>
                         logger.error(s">> error thrown", e)
+                        logger.error(s"\n[[ initial writer error ")
                         transaction.discard()
                         false
                     }
 
                 } else "[FAIL]"
 
-              logger.error(s">> [Initial write] : $result - [${result != null && result.toString.equals("[OK]")}], ${b(requestKeyValue.value, 1, "v4")._1.toMap}")
+              logger.error(s">> [Initial write] : $result - [${result != null && result.toString.equals("[OK]")}], ${requestKeyValue.value}")
+//              logger.error(s"\n[[ Initial write : $result, --. [${result != null && result.toString.equals("[OK]")}]")
               result != null && result.toString.equals("[OK]")
           }
         } catch {

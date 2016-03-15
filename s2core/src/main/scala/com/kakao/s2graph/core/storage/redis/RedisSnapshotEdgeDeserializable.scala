@@ -4,7 +4,7 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.hbase.GDeserializable
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
-import com.kakao.s2graph.core.types.{GraphType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
+import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -59,8 +59,16 @@ class RedisSnapshotEdgeDeserializable extends GDeserializable[SnapshotEdge]  {
     val srcVertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, srcInnerId)
     val tgtVertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, tgtInnerId)
 
-    val (props, op, ts, statusCode, _pendingEdgeOpt) = {
+    val (props, op, _cellVersion, ts, statusCode, _pendingEdgeOpt) = {
       var pos = 0
+      val (tsInnerVal, numOfBytesUsed) = InnerVal.fromBytes(kv.value, pos, 0, schemaVer, false)
+      val version = tsInnerVal.value match {
+        case n: BigDecimal => n.bigDecimal.longValue()
+        case _ => tsInnerVal.toString().toLong
+      }
+      logger.error(s">>>> snapshotEdgeDeser: ts - $version, numbytes - $numOfBytesUsed")
+
+      pos += numOfBytesUsed
       val (statusCode, op) = statusCodeWithOp(kv.value(pos))
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
@@ -78,15 +86,15 @@ class RedisSnapshotEdgeDeserializable extends GDeserializable[SnapshotEdge]  {
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
-            Edge(Vertex(srcVertexId, cellVersion),
-              Vertex(tgtVertexId, cellVersion),
+            Edge(Vertex(srcVertexId, ts),
+              Vertex(tgtVertexId, ts),
               labelWithDir, pendingEdgeOp,
-              cellVersion, pendingEdgeProps.toMap,
+              ts, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode, lockTs = lockTs)
           Option(pendingEdge)
         }
 
-      (kvsMap, op, ts, statusCode, _pendingEdgeOpt)
+      (kvsMap, op, version, ts, statusCode, _pendingEdgeOpt)
     }
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),

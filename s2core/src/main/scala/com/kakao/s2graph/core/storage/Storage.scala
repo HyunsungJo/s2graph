@@ -362,26 +362,33 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
+//      logger.error(s"\n[[(${System.nanoTime().toString.takeRight(8)}) mutateEdgesInner -> ${edges.map(_.toDebugString).mkString(",")}")
+
       def commit(_edges: Seq[Edge], statusCode: Byte): Future[Boolean] = {
 
         logger.info(s">> commit ")
 
         fetchSnapshotEdge(_edges.head) flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
-//          logger.info(s">> fetch snapshot edge")
-//          logger.error(s">> fetch snapshot edge : ${snapshotEdgeOpt}")
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
 //          logger.debug(s"snapshot: ${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
 //          logger.info(s"snapshot: ${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
 //          logger.error(s"snapshot: ${snapshotEdgeOpt}\n${edgeUpdate.toLogString}")
+          val debug = List("|_Write->", newEdge.toDebugString, "_Snap->", snapshotEdgeOpt.map(_.toDebugString), "_Pending->", snapshotEdgeOpt.map(_.pendingEdgeOpt.map(_.toDebugString))).mkString(" | ")
+          logger.error(s"\n[[(${System.nanoTime().toString.takeRight(8)}) $debug]]")
+          val snapProps = snapshotEdgeOpt.map(_.propsWithTs)
+          val reqProps = newEdge.propsWithTs
+//          logger.error(s"\n[[ snap props : $snapProps, new props : $reqProps")
+
           //shouldReplace false.
           if (edgeUpdate.newSnapshotEdge.isEmpty && statusCode <= 0) {
-            logger.error(s"${newEdge.toLogString} drop.")
+            logger.error(s"\n[[drop ${newEdge.toDebugString}]]")
             Future.successful(true)
           } else {
             commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, kvOpt, edgeUpdate).map { ret =>
               if (ret) {
                 logger.error(s"[Success] commit: \n${_edges.map(_.toLogString).mkString("\n")}")
+                logger.error(s"\n(${System.nanoTime().toString.takeRight(8)}) [[ commit: ${_edges.map(_.toDebugString).mkString(",")}")
               } else {
                 throw new PartialFailureException(newEdge, 3, "commit failed.")
               }
@@ -395,7 +402,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           logger.error(s">> max try num error")
           edges.foreach { edge =>
             logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
-            ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+//            ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
           }
           Future.successful(false)
         } else {
@@ -754,6 +761,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       if (p < FailProb) throw new PartialFailureException(edge, 0, s"$p")
       else {
         val lockEdgePut = snapshotEdgeSerializer(lockEdge).toKeyValues.head
+//        logger.error(s"\n[[(${System.nanoTime().toString.takeRight(8)}) old snapshot -> ${oldSnapshotEdgeOpt.map(e => e.toSnapshotEdge.toDebugString())}")
         val oldPut = oldSnapshotEdgeOpt.map(e => snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head)
         //        val lockEdgePut = buildPutAsync(lockEdge).head
         //        val oldPut = oldSnapshotEdgeOpt.map(e => buildPutAsync(e.toSnapshotEdge).head)
@@ -762,12 +770,14 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           throw new PartialFailureException(edge, 0, "AcquireLock RPC Failed")
         }.map { ret =>
           if (ret) {
+            logger.error(s"\n[[ acquireLock success -> ${edge.toDebugString}, oldsnapshot -> ${oldSnapshotEdgeOpt.map(e => e.toSnapshotEdge.toDebugString())}")
             val log = Seq(
               "\n",
               "=" * 50,
               s"[Success]: acquireLock",
-              s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
-              s"[RequestEdge]: ${edge.toLogString}",
+//              s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
+              s"[WriteEdge]: ${edge.toLogString}",
+              "-" * 50,
               s"[LockEdge]: ${lockEdge.toLogString()}",
               s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
               s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
@@ -780,15 +790,16 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
               "\n",
               "=" * 50,
               s"[Fail]: acquireLock",
-              s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
-              s"[RequestEdge]: ${edge.toLogString}",
+//              s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
+              s"[WriteEdge]: ${edge.toLogString}",
+              "-" * 50,
               s"[LockEdge]: ${lockEdge.toLogString()}",
               s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
               s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
               "=" * 50, "\n").mkString("\n")
 
             logger.error(log)
-            throw new PartialFailureException(edge, 0, "hbase fail.")
+            throw new PartialFailureException(edge, 0, s"\n[[(${System.nanoTime().toString.takeRight(8)}) acquireLock failed. -> ${edge.toDebugString}]]")
           }
           true
         }
@@ -822,11 +833,13 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             "\n",
             "=" * 50,
             s"[Success]: releaseLock",
-            s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
-            s"[RequestEdge]: ${edge.toLogString}",
+//            s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
+            s"[WriteEdge]: ${edge.toLogString}",
+            "-" * 50,
             s"[LockEdge]: ${lockEdge.toLogString()}",
+            s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toDebugString).getOrElse("")}",
+            "-" * 50,
             s"[ReleaseEdge]: ${releaseLockEdge.toLogString()}",
-            s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
             s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
             "=" * 50, "\n").mkString("\n")
 
@@ -835,11 +848,13 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           val msg = Seq("\nRelease FATAL ERROR\n",
             "=" * 50,
             s"[Fail]: releaseLock",
-            s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
-            s"[RequestEdge]: ${edge.toLogString}",
+//            s"[Snapshot Fetched KV]: ${GraphUtil.bytesToHexString(oldBytes)}",
+            s"[WriteEdge]: ${edge.toLogString}",
+            "-" * 50,
             s"[LockEdge]: ${lockEdge.toLogString()}",
+            s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toDebugString).getOrElse("")}",
+            "-" * 50,
             s"[ReleaseEdge]: ${releaseLockEdge.toLogString()}",
-            s"[PendingEdge]: ${lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}",
 //            "=" * 50,
 //            oldBytes.toList,
 //            lockEdgePut,
@@ -853,7 +868,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
           logger.error(msg.mkString("\n"))
           //          error(ret, "releaseLock", edge.toSnapshotEdge)
-          throw new PartialFailureException(edge, 3, "hbase fail.")
+          throw new PartialFailureException(edge, 3, s"\n[[releaseLock failed -> ${edge.toDebugString}]]")
         }
         true
       }
@@ -934,6 +949,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     val lockEdge = buildLockEdge(snapshotEdgeOpt, edge, kvOpt)
     val releaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, edgeUpdate)
     logger.info(s">> commitUpdate $edge")
+//    logger.error(s"\n[[(${System.nanoTime().toString.takeRight(9)}) edgeUpdate -> inserts:${edgeUpdate.edgesToInsert.map(_.toDebugString()).mkString(",")}, deletes:${edgeUpdate.edgesToDelete.map(_.toDebugString()).mkString(",")}")
     val _process = commitProcess(edge, statusCode)(snapshotEdgeOpt, kvOpt) _
     snapshotEdgeOpt match {
       case None =>
@@ -948,6 +964,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             _process(lockEdge, releaseLockEdge, edgeUpdate)
           //            process(lockEdge, releaseLockEdge, edgeUpdate, statusCode)
           case Some(pendingEdge) =>
+//            logger.error(s"\n[[commitUpdate with Snapshot : reqEdge-${edge.toDebugString}, pending-${snapshotEdgeOpt.map(_.pendingEdgeOpt.map(_.toDebugString))}")
             def isLockExpired = pendingEdge.lockTs.get + LockExpireDuration < System.currentTimeMillis()
             if (isLockExpired) {
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)

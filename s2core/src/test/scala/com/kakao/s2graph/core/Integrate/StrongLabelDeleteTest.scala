@@ -15,7 +15,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  ignore("Strong consistency select", V3Test) {
+  test("Strong consistency select", V3Test) {
     insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
@@ -24,7 +24,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
-  ignore("Strong consistency deleteAll", V3Test) {
+  test("Strong consistency deleteAll", V3Test) {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
 
@@ -73,8 +73,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     } yield {
         val src = System.currentTimeMillis()
 
-//        val (ret, last) = testInner(i, src)
-        val (ret, last) = testInnerFail(i, src)
+        val (ret, last) = testInner(i, src)
+//        val (ret, last) = testInnerFail(i, src)
         ret should be(true)
         ret
       }
@@ -82,7 +82,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret.forall(identity)
   }
 
-  ignore("update delete 2", V3Test) {
+  test("update delete 2", V3Test) {
     val src = System.currentTimeMillis()
     var ts = 0L
 
@@ -121,7 +121,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
     */
-  ignore("large degrees", V3Test) {
+  test("large degrees", V3Test) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -161,7 +161,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret should be(true)
   }
 
-  ignore("deleteAll", V3Test) {
+  test("deleteAll", V3Test) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -201,9 +201,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     val labelName = testLabelNameV3
     val maxTgtId = 10
-    val batchSize = 5
-    val testNum = 2
-    val numOfBatch = 5
+    val batchSize = 10
+    val testNum = 3
+    val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelNameV3
@@ -277,6 +277,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         Seq(startTs+14, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
         Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
       )
+      println(s"[[[[[[[[[[[[[[[[[[")
       allRequests.foreach(println _)
 //      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
 //        insertEdgesAsync(bulkRequests: _*)

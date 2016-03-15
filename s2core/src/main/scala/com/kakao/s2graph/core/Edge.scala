@@ -44,6 +44,9 @@ case class SnapshotEdge(srcVertex: Vertex,
   def toLogString() = {
     List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
   }
+  def toDebugString() = {
+    List(ts, GraphUtil.fromOp(op)).mkString("_")
+  }
 }
 
 case class IndexEdge(srcVertex: Vertex,
@@ -113,6 +116,9 @@ case class IndexEdge(srcVertex: Vertex,
   // only for debug
   def toLogString() = {
     List(version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+  }
+  def toDebugString() = {
+    List(ts, GraphUtil.fromOp(op)).mkString("_")
   }
 }
 
@@ -270,6 +276,10 @@ case class Edge(srcVertex: Vertex,
 
     ret.mkString("\t")
   }
+
+  def toDebugString: String = {
+    List(ts, GraphUtil.fromOp(op)).mkString("_")
+  }
 }
 
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
@@ -363,6 +373,8 @@ object Edge extends JSONParser {
       val newTs = if (maxTs > requestTs) maxTs else requestTs
       val propsWithTs = prevPropsWithTs ++
         Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(newTs, requestEdge.label.schemaVersion), newTs))
+
+      logger.error(s"\n[[ req edge : [${requestEdges.map(_.toDebugString).mkString(",")}]  ===== old props : $oldPropsWithTs, newProps : $propsWithTs")
       val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
 
       //      logger.debug(s"${edgeMutate.toLogString}\n${propsWithTs}")

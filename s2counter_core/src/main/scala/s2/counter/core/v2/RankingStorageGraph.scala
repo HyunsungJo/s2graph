@@ -124,6 +124,70 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     Await.result(Future.sequence(futures), 10 seconds)
   }
 
+  def update3(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
+    val futures = for {
+      (key, value) <- values if checkAndPrepareDimensionBucket(key)
+    } yield {
+      // prepare dimension bucket edge
+      getEdges(key, "raw").map{ edges => (edges, key, value)}
+    }
+
+    val mutatesFuture = Future.sequence(futures).map{ edgeTuples =>
+      for {
+        (edges, key, value) <- edgeTuples
+      } yield {
+        val prevRankingSeq = toWithScoreLs(edges)
+        val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
+        val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
+        val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
+        val mergedRankingMap = mergedRankingSeq.toMap
+
+        val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
+          // 0-index
+          GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
+        }.map { case (shardIdx, groupedRanking) =>
+          shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
+        }.toSeq
+
+        def edgesToDelete: List[(JsValue, Int)] = {
+          val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
+          val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
+          val deleteItems = duplicatedItems ++ cutoffItems
+
+          val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
+          keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map { case ( _, e) => (e, 0)}
+        }
+        val t = List[(JsValue, Int)]((buildInsertBulk(key, bucketRankingSeq), 1) )
+        t ++ edgesToDelete
+      }
+    }
+
+    val groupUnitSize = 50
+    val parallelUnitSize = 50
+    val mutateCompletesFuture = mutatesFuture.map(_.flatten.partition(_._2 == 0)).map{ case (deletes, inserts) =>
+      // do grouped inserts and deletes
+      val delFutures = for {
+        deleteGroup <- deletes.map(_._1).grouped(groupUnitSize).map(Json.toJson(_)).grouped(parallelUnitSize)
+      } yield {
+        deleteEdgesWithWait(deleteGroup)
+      }
+      val resultFutures = Future.sequence(delFutures).map{ delSuccess =>
+        (delSuccess, inserts)
+      }
+      Await.result(resultFutures, 10 seconds)
+    }.map{ case (delSuccess, inserts) =>
+      val insFutures = for {
+        insertsGroup <- inserts.map(_._1).grouped(groupUnitSize).map(Json.toJson(_)).grouped(parallelUnitSize)
+      } yield {
+        insertEdgesWithWait(insertsGroup)
+      }
+
+      Await.result(Future.sequence(insFutures), 10 seconds).forall(identity)
+    }
+
+    Await.result(mutateCompletesFuture, 10 seconds)
+  }
+
   private def toWithScoreLs(edges: List[JsValue]): List[(String, Double)] = {
     for {
       edgeJson <- edges
@@ -169,6 +233,56 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
           true
         case _ =>
           throw new RuntimeException(s"failed insertBulk. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
+      }
+    }
+  }
+
+  private def buildInsertBulk(key: RankingKey, newRankingSeq: Seq[(Int, Seq[(String, Double)])]): JsValue = {
+    val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
+    val timestamp: Long = System.currentTimeMillis
+    val keyProps = Json.toJson(key.eq.dimKeyValues).as[JsObject] ++ Json.obj(
+      "time_unit" -> key.eq.tq.q.toString,
+      "time_value" -> key.eq.tq.ts,
+      "date_time" -> key.eq.tq.dateTime,
+      "dimension" -> key.eq.dimension
+    )
+    Json.toJson {
+      for {
+        (shardIdx, rankingSeq) <- newRankingSeq
+        (itemId, score) <- rankingSeq
+      } yield {
+        val srcId = makeBucketShardKey(shardIdx, key)
+        Json.obj(
+          "timestamp" -> timestamp,
+          "from" -> srcId,
+          "to" -> itemId,
+          "label" -> labelName,
+          "props" -> keyProps.+(("score", Json.toJson(score)))
+        )
+      }
+    }
+  }
+
+  private def insertEdgesWithWait(bulk: Seq[JsValue]): Future[Boolean] = {
+    wsClient.url(s"$s2graphUrl/graphs/edges/insertWithWait").post(Json.toJson(bulk)).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          true
+        case _ =>
+          log.error(s"failed inserts. errCode: ${resp.status}, body: ${resp.body}, query: $bulk")
+          false
+      }
+    }
+  }
+
+  private def deleteEdgesWithWait(bulk: Seq[JsValue]): Future[Boolean] = {
+    wsClient.url(s"$s2graphUrl/graphs/edges/deleteWithWait").post(Json.toJson(bulk)).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          true
+        case _ =>
+          log.error(s"failed delete. errCode: ${resp.status}, body: ${resp.body}, query: $bulk")
+          false
       }
     }
   }
