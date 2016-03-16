@@ -83,9 +83,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
 
   override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
-//        logger.debug(s"$rpc")
-    logger.error(s"writeToStorage - ts: ${kv.timestamp}\nsummary: ${kv.toLogString}\nop: ${kv.operation}\nkey: ${GraphUtil.bytesToHexString(kv.row)}\nvalue: ${GraphUtil.bytesToHexString(kv.value)}")
-
     val _client = client(withWait)
     val _defer = kv.operation match {
       case SKeyValue.Put => _client.put(new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp))

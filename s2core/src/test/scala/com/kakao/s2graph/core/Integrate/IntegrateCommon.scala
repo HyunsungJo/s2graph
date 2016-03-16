@@ -37,7 +37,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
    * Make Service, Label, Vertex for integrate test
    */
   def initTestData() = {
-    println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+//    println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     Management.deleteService(testServiceName)
 
     // 1. createService

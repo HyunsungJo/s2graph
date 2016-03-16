@@ -1,11 +1,10 @@
 package com.kakao.s2graph.core.storage.redis
 
 import com.kakao.s2graph.core.mysqls.LabelIndex
-import com.kakao.s2graph.core.types.v2.InnerVal
-import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{GraphUtil, GraphExceptions, SnapshotEdge}
 import com.kakao.s2graph.core.storage.{SKeyValue, StorageSerializable}
-import com.kakao.s2graph.core.types.{SourceAndTargetVertexIdPair, GraphType}
+import com.kakao.s2graph.core.types.v2.InnerVal
+import com.kakao.s2graph.core.types.{GraphType, SourceAndTargetVertexIdPair}
+import com.kakao.s2graph.core.{GraphExceptions, GraphUtil, SnapshotEdge}
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -32,7 +31,6 @@ case class RedisSnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Sto
     propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
   private def toKeyValuesInnerV4: Seq[SKeyValue]  = {
-    logger.info(s">> toKeyValues for snapshotEdge")
     val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(snapshotEdge.srcVertex.innerId, snapshotEdge.tgtVertex.innerId).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(LabelIndex.DefaultSeq, isSnapshot = true)
@@ -44,8 +42,6 @@ case class RedisSnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Sto
     )
 
     val timestamp = InnerVal(BigDecimal(snapshotEdge.version)).bytes
-
-    logger.info(s">> snapshot edge : row key completed ")
 
     val value = snapshotEdge.pendingEdgeOpt match {
       case None => Bytes.add(timestamp, valueBytes())

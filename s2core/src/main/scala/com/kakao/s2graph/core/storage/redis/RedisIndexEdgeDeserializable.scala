@@ -46,9 +46,6 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
         // skip first byte: qualifier length
         var pos = 1
         val (idxPropsRaw, tgtVertexIdRaw, tgtVertexIdLen, timestamp) = {
-          logger.info(s">> [parseQualifier] key: ${GraphUtil.bytesToHexString(kv.row)}")
-          logger.info(s">> [parseQualifier] qualifier: ${GraphUtil.bytesToHexString(kv.qualifier)}")
-          logger.info(s">> [parseQualifier] value: ${GraphUtil.bytesToHexString(kv.value)}")
           val (props, endAt) = bytesToProps(kv.value, pos, version)
           pos = endAt
           qualifierLen += endAt
@@ -71,7 +68,6 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
             }
           pos += tgtVertexIdLen
           qualifierLen += tgtVertexIdLen
-          logger.error(s"TSTSTS!!! ${ts}")
           (props, tgtVertexId, tgtVertexIdLen, ts)
         }
         val op = kv.value(totalQualifierLen)
@@ -151,7 +147,6 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
     val mergedProps =
       if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
       else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(timestamp, version))
-    logger.info(s">> Src vertex ID : $srcVertexId, Tgt vertex ID : $tgtVertexId, props : $mergedProps")
 
     IndexEdge(Vertex(srcVertexId, timestamp), Vertex(tgtVertexId, timestamp), labelWithDir, op, timestamp, labelIdxSeq, mergedProps)
   }

@@ -67,10 +67,8 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return ack message from storage.
    */
   override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
-    logger.error(s">>>> writeToStorage: ts - ${kv.timestamp}")
     val future = Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
-        logger.error(s"writeToStorage - ts: ${kv.timestamp}\nsummary: ${kv.toLogString}\nop: ${kv.operation}\nkey: ${GraphUtil.bytesToHexString(kv.row)}\nvalue: ${GraphUtil.bytesToHexString(kv.value)}")
         kv.operation match {
           case SKeyValue.Put if kv.qualifier.length > 0 =>
             jedis.zadd(kv.row, RedisZsetScore, kv.qualifier ++ kv.value) == 1
@@ -81,12 +79,9 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               jedis.zadd(kv.row, RedisZsetScore, kv.value) == 1
             }
           case SKeyValue.Delete if kv.qualifier.length > 0 =>
-            //            logger.error(s">> Vertex Delete")
             jedis.zrem(kv.row, kv.qualifier ++ kv.value) == 1
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
-            logger.error(s">> Edge Delete")
             val r = jedis.zrem(kv.row, kv.value) == 1
-            logger.info(s">> [Delete res]: $r")
             r
           case SKeyValue.Increment => true // no need for degree increment since Redis storage uses ZCARD for degree
         }
@@ -221,7 +216,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       } match {
         case Success(v) => v
         case Failure(e) =>
-          logger.error(s">> get fail!! $e")
+//          logger.error(s">> get fail!! $e")
           e.printStackTrace()
           Seq[SKeyValue]()
       }
@@ -405,29 +400,12 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   override def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
     Future[Boolean] {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(requestKeyValue.row)) { jedis =>
-        val c = GraphUtil.bytesToHexString _
-        val b = com.kakao.s2graph.core.storage.StorageDeserializable.bytesToKeyValuesWithTs _
         try {
           expectedOpt match {
             case Some(expected) =>
 
               jedis.watch(requestKeyValue.row)
               val curVal = jedis.get(requestKeyValue.row)
-              val eq = Bytes.compareTo(curVal, expected.value) == 0
-
-//              val data = Seq("\n", "=" * 150,
-//                s">> EQ? : $eq",
-//                s">> RET : ${c(curVal)}, ${b(curVal, 1, "v4")._1.toMap}",
-//                s">> Old : ${c(expected.value)}, ${b(expected.value, 1, "v4")._1.toMap}",
-//                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-//                "-" * 150,
-//                s">> KEY : ${c(requestKeyValue.row)}",
-//                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
-//                "=" * 150
-//              )
-//              logger.error(data.mkString("\n"))
-
-
               val result =
                 if (Bytes.compareTo(expected.value, curVal) == 0) {
                   val transaction = jedis.multi()
@@ -441,28 +419,13 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                       false
                   }
                 } else "[FAIL]"
-//              logger.error(s">> cas1 : $result, --. [${result != null && result.toString.equals("[OK]")}]")
-//              logger.error(s"\n[[ cas : $result, --. [${result != null && result.toString.equals("[OK]")}]")
 
               result != null && result.toString.equals("[OK]")
 
             case None =>
-              logger.error(s"\n[[ Initial start")
-
 
               jedis.watch(requestKeyValue.row)
               val curVal = jedis.get(requestKeyValue.row)
-              val sCurVal = if ( curVal == null ) "[NULL" else curVal.toString
-//              val data = Seq("\n", "=" * 150,
-//                s">> [Initial Edge Write]",
-//                s">> In Redis : ${sCurVal}}",
-//                s">> New : ${c(requestKeyValue.value)}, ${b(requestKeyValue.value, 1, "v4")._1.toMap}",
-//                "-" * 150,
-//                s">> KEY : ${c(requestKeyValue.row)}",
-//                s"[TS]: ${System.nanoTime().toString.takeRight(8)}",
-//                "=" * 150
-//              )
-//              logger.error(data.mkString("\n"))
 
               val result =
                 if ( curVal == null ) {
@@ -473,15 +436,12 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                     } catch {
                       case e: Throwable =>
                         logger.error(s">> error thrown", e)
-                        logger.error(s"\n[[ initial writer error ")
                         transaction.discard()
                         false
                     }
 
                 } else "[FAIL]"
 
-              logger.error(s">> [Initial write] : $result - [${result != null && result.toString.equals("[OK]")}], ${requestKeyValue.value}")
-//              logger.error(s"\n[[ Initial write : $result, --. [${result != null && result.toString.equals("[OK]")}]")
               result != null && result.toString.equals("[OK]")
           }
         } catch {
@@ -514,20 +474,16 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     Future[Boolean] {
       client.doBlockWithKey(k) { jedis =>
         jedis.watch(k)
-        //      Thread.sleep(5000)
         val fetched = jedis.get(k)
         logger.error(s"fetched: $fetched")
-//        Thread.sleep(10000)
         val result = if (fetched.contentEquals(exp)) {
           val tx = jedis.multi()
           try {
             tx.set(k, v)
             val r = tx.exec()
-            logger.error(s">> result : $r")
             r
           } catch {
             case e: Throwable =>
-              logger.error(s">> error thrown", e)
               tx.discard()
               false
           }

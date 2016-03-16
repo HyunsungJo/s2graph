@@ -45,13 +45,13 @@ class TransferToHFileTest  extends FlatSpec with BeforeAndAfterAll with Matchers
     GraphSubscriberHelper.apply("dev", "none", "none", "none")
     // 1. create service
     if(Management.findService("loader-test").isEmpty) {
-      println(">>> create service...")
+//      println(">>> create service...")
       Management.createService("loader-test", "localhost", "loader-test-dev", 1, None, "gz")
     }
 
     // 2. create label
     if(Management.findLabel("friends_rel").isEmpty) {
-      println(">>> create label...")
+//      println(">>> create label...")
       Management.createLabel(
         "friends_rel",
         "loader-test", "user_id", "string",

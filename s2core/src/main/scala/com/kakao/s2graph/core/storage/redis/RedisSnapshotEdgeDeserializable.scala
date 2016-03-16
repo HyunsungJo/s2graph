@@ -5,7 +5,6 @@ import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.hbase.GDeserializable
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -38,13 +37,9 @@ class RedisSnapshotEdgeDeserializable extends GDeserializable[SnapshotEdge]  {
     /** rowKey */
     def parseRowV4(kv: SKeyValue, version: String) = {
       var pos = -GraphUtil.bytesForMurMurHash
-      kv.row
       val (srcIdAndTgtId, srcIdAndTgtIdBytesLen) = SourceAndTargetVertexIdPair.fromBytes(kv.row, pos, kv.row.length, version)
-      logger.info(s">> srcIdAndTgtId : $srcIdAndTgtId, len : $srcIdAndTgtIdBytesLen")
-      logger.info(s">> srcId : ${srcIdAndTgtId.srcInnerId}, tgtId : ${srcIdAndTgtId.tgtInnerId}")
       pos += srcIdAndTgtIdBytesLen
       val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
-      logger.info(s">> labelWithDir : $labelWithDir")
       pos += 4
       val (labelIdxSeq, isSnapshot) = bytesToLabelIndexSeqWithIsSnapshot(kv.row, pos)
 
@@ -66,7 +61,6 @@ class RedisSnapshotEdgeDeserializable extends GDeserializable[SnapshotEdge]  {
         case n: BigDecimal => n.bigDecimal.longValue()
         case _ => tsInnerVal.toString().toLong
       }
-      logger.error(s">>>> snapshotEdgeDeser: ts - $version, numbytes - $numOfBytesUsed")
 
       pos += numOfBytesUsed
       val (statusCode, op) = statusCodeWithOp(kv.value(pos))

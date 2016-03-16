@@ -47,9 +47,7 @@ case class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends StorageSeria
     val qualifierLen = Array.fill[Byte](1)(qualifier.length.toByte)
     val propsKv = propsToKeyValues(indexEdge.metas.toSeq)
 
-    val c = GraphUtil.bytesToHexString _
     val value = qualifierLen ++ qualifier ++ propsKv
-//    logger.error(s"~~VALUE - row: ${c(row)}, val: ${c(value)}, qualLen: ${c(qualifierLen)}, qual: ${c(qualifier)}, props: ${c(propsKv)}")
     val emptyArray = Array.empty[Byte]
     val kv = SKeyValue(emptyArray, row, emptyArray, emptyArray, value, indexEdge.version)
 

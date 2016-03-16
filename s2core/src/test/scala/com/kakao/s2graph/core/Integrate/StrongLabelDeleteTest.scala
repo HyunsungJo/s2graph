@@ -2,7 +2,7 @@ package com.kakao.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
 
-import com.kakao.s2graph.core.{GraphUtil, V3Test}
+import com.kakao.s2graph.core.{GraphUtil, RedisTest}
 import org.apache.hadoop.hbase.util.Bytes
 import play.api.libs.json.{JsValue, Json}
 
@@ -15,7 +15,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  test("Strong consistency select", V3Test) {
+  test("Strong consistency select", RedisTest) {
     insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
@@ -24,7 +24,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
-  test("Strong consistency deleteAll", V3Test) {
+  test("Strong consistency deleteAll", RedisTest) {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testColumnName))
 
@@ -67,7 +67,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   }
 
 
-  test("update delete", V3Test) {
+  test("update delete", RedisTest) {
     val ret = for {
       i <- 0 until testNum
     } yield {
@@ -82,7 +82,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret.forall(identity)
   }
 
-  test("update delete 2", V3Test) {
+  test("update delete 2", RedisTest) {
     val src = System.currentTimeMillis()
     var ts = 0L
 
@@ -121,7 +121,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
     */
-  test("large degrees", V3Test) {
+  test("large degrees", RedisTest) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -161,7 +161,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret should be(true)
   }
 
-  test("deleteAll", V3Test) {
+  test("deleteAll", RedisTest) {
     val labelName = testLabelNameV3
     val dir = "out"
     val maxSize = 100
@@ -183,13 +183,14 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
-    val deletedAt = System.currentTimeMillis()
+//    val deletedAt = System.currentTimeMillis()
+    val deletedAt = src + maxSize + 1000 + 1000
     val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
     deleteAllSync(deleteAllRequest)
 
     val result = getEdgesSync(query(id = src))
-//    println(result)
+    println(s"!!!!!RESULT: ${Json.prettyPrint(result)}")
     val resultEdges = (result \ "results").as[Seq[JsValue]]
     resultEdges.isEmpty should be(true)
 
@@ -275,9 +276,18 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         Seq(startTs+12, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
         Seq(startTs+13, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
         Seq(startTs+14, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
-        Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
+        Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+16, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+17, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+18, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+19, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+20, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+21, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+22, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+23, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+24, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+25, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
       )
-      println(s"[[[[[[[[[[[[[[[[[[")
       allRequests.foreach(println _)
 //      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
 //        insertEdgesAsync(bulkRequests: _*)

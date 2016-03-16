@@ -374,7 +374,7 @@ object Edge extends JSONParser {
       val propsWithTs = prevPropsWithTs ++
         Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(newTs, requestEdge.label.schemaVersion), newTs))
 
-      logger.error(s"\n[[ req edge : [${requestEdges.map(_.toDebugString).mkString(",")}]  ===== old props : $oldPropsWithTs, newProps : $propsWithTs")
+//      logger.error(s"\n[[ req edge : [${requestEdges.map(_.toDebugString).mkString(",")}]  ===== old props : $oldPropsWithTs, newProps : $propsWithTs")
       val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
 
       //      logger.debug(s"${edgeMutate.toLogString}\n${propsWithTs}")

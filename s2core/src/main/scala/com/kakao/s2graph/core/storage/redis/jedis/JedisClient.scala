@@ -32,7 +32,7 @@ class JedisClient(config: Config) {
   poolConfig.setMaxWaitMillis(200)
 
   val jedisPools = instances.map { case (host, port) =>
-    log.info(s">> jedisPool initialized : $host, $port")
+//    log.info(s">> jedisPool initialized : $host, $port")
     new JedisPool(poolConfig, host, port)
   }
 
