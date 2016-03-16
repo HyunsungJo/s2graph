@@ -475,7 +475,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       client.doBlockWithKey(k) { jedis =>
         jedis.watch(k)
         val fetched = jedis.get(k)
-        logger.error(s"fetched: $fetched")
+//        logger.info(s"fetched: $fetched")
         val result = if (fetched.contentEquals(exp)) {
           val tx = jedis.multi()
           try {

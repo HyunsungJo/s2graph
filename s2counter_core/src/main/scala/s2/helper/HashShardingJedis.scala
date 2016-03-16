@@ -76,7 +76,7 @@ class HashShardingJedis(config: Config) {
       try {
         jedis1 = jedis_pool1.getResource()
 //        jedis2 = jedis_pool2.getResource()
-        log.info(s">> Jedis Pool Active Num : ${jedis_pool1.getNumActive}")
+//        log.info(s">> Jedis Pool Active Num : ${jedis_pool1.getNumActive}")
 
         /* val f1 = Future(f(jedis1))
         val f2 = Future(f(jedis2))

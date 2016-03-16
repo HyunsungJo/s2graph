@@ -5,7 +5,6 @@ import com.kakao.s2graph.core.storage.StorageDeserializable._
 import com.kakao.s2graph.core.storage.hbase.GDeserializable
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
 import com.kakao.s2graph.core.types.{GraphType, InnerVal, InnerValLike, TargetVertexId, VertexId}
-import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, IndexEdge, QueryParam, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -39,7 +38,6 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
   private def parseQualifier(kv: SKeyValue, totalQualifierLen: Int, version: String): QualifierRaw = {
     kv.operation match {
       case SKeyValue.Increment =>
-        logger.error(s"TSTSTS!!!")
         (Array.empty[(Byte, InnerValLike)], VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version)), GraphUtil.toOp("increment").get, true, 0, 0)
       case _ =>
         var qualifierLen = 0

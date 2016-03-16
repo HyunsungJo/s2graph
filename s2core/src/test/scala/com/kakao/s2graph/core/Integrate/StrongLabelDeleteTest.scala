@@ -190,7 +190,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     deleteAllSync(deleteAllRequest)
 
     val result = getEdgesSync(query(id = src))
-    println(s"!!!!!RESULT: ${Json.prettyPrint(result)}")
+//    println(s"!!!!!RESULT: ${Json.prettyPrint(result)}")
     val resultEdges = (result \ "results").as[Seq[JsValue]]
     resultEdges.isEmpty should be(true)
 

@@ -372,13 +372,10 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
           //shouldReplace false.
           if (edgeUpdate.newSnapshotEdge.isEmpty && statusCode <= 0) {
-            logger.error(s"\n[[drop ${newEdge.toDebugString}]]")
             Future.successful(true)
           } else {
             commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, kvOpt, edgeUpdate).map { ret =>
               if (ret) {
-                logger.error(s"[Success] commit: \n${_edges.map(_.toLogString).mkString("\n")}")
-                logger.error(s"\n(${System.nanoTime().toString.takeRight(8)}) [[ commit: ${_edges.map(_.toDebugString).mkString(",")}")
               } else {
                 throw new PartialFailureException(newEdge, 3, "commit failed.")
               }
